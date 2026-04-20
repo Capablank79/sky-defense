@@ -1,3 +1,5 @@
+import 'package:sky_defense/core/config/economy_config.dart';
+import 'package:sky_defense/core/config/retention_config.dart';
 import 'package:sky_defense/domain/entities/player_economy.dart';
 import 'package:sky_defense/domain/entities/player_progress.dart';
 import 'package:sky_defense/domain/entities/player_settings.dart';
@@ -17,12 +19,23 @@ class PlayerSanitizationRules {
   final int maxProgressLevel;
   final int maxStreakDay;
 
-  static const PlayerSanitizationRules defaults = PlayerSanitizationRules(
-    maxCredits: 9999999,
-    maxPremiumCredits: 99999,
-    maxHighScore: 9999999,
-    maxProgressLevel: 999,
-    maxStreakDay: 365,
+  factory PlayerSanitizationRules.fromConfig({
+    required EconomyConfig economy,
+    required RetentionConfig retention,
+  }) {
+    return PlayerSanitizationRules(
+      maxCredits: economy.maxCredits,
+      maxPremiumCredits: economy.maxPremiumCredits,
+      maxHighScore: economy.maxHighScore,
+      maxProgressLevel: economy.maxProgressLevel,
+      maxStreakDay: retention.maxStreakDays,
+    );
+  }
+
+  static final PlayerSanitizationRules defaults =
+      PlayerSanitizationRules.fromConfig(
+    economy: EconomyConfig.defaults,
+    retention: RetentionConfig.defaults,
   );
 }
 
@@ -52,17 +65,19 @@ class PlayerProfile {
   }
 
   PlayerProfile toSanitized({
-    PlayerSanitizationRules rules = PlayerSanitizationRules.defaults,
+    PlayerSanitizationRules? rules,
   }) {
+    final PlayerSanitizationRules safeRules =
+        rules ?? PlayerSanitizationRules.defaults;
     return PlayerProfile(
       progress: progress.toSanitized(
-        maxHighScore: rules.maxHighScore,
-        maxProgressLevel: rules.maxProgressLevel,
-        maxStreakDay: rules.maxStreakDay,
+        maxHighScore: safeRules.maxHighScore,
+        maxProgressLevel: safeRules.maxProgressLevel,
+        maxStreakDay: safeRules.maxStreakDay,
       ),
       economy: economy.toSanitized(
-        maxCredits: rules.maxCredits,
-        maxPremiumCredits: rules.maxPremiumCredits,
+        maxCredits: safeRules.maxCredits,
+        maxPremiumCredits: safeRules.maxPremiumCredits,
       ),
       settings: settings,
     );

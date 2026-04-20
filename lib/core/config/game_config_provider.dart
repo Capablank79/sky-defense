@@ -23,6 +23,10 @@ final configRuntimeProvider =
   ),
 );
 
+final gameConfigFutureProvider = FutureProvider<GameConfigFacade>((Ref ref) async {
+  return ref.watch(configLoaderProvider).loadFacade();
+});
+
 final gameConfigFacadeProvider = Provider<GameConfigFacade>(
   (Ref ref) => ref.watch(configRuntimeProvider).value ?? GameConfigFacade.defaults(),
 );

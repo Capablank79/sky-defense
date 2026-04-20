@@ -1,4 +1,5 @@
 import 'package:sky_defense/domain/entities/player_profile.dart';
+import 'package:sky_defense/domain/entities/result.dart';
 import 'package:sky_defense/domain/repositories/player_repository.dart';
 
 class SavePlayerProfileUseCase {
@@ -6,7 +7,7 @@ class SavePlayerProfileUseCase {
 
   final PlayerRepository _repository;
 
-  Future<void> call(PlayerProfile profile) {
+  Future<Result<void>> call(PlayerProfile profile) {
     return _repository.savePlayerProfile(profile);
   }
 }

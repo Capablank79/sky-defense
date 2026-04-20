@@ -28,6 +28,7 @@ class PlayerProgress {
         currentStreakDay > 0 &&
         currentStreakDay <= maxStreakDay &&
         lastRewardClaimEpochMs >= 0 &&
+        lastSessionEpochMs >= lastRewardClaimEpochMs &&
         highScore <= maxHighScore;
   }
 
@@ -36,14 +37,19 @@ class PlayerProgress {
     required int maxProgressLevel,
     required int maxStreakDay,
   }) {
+    final int safeLastSessionEpochMs = lastSessionEpochMs < 0 ? 0 : lastSessionEpochMs;
+    final int safeLastRewardEpochMs = lastRewardClaimEpochMs < 0
+        ? 0
+        : (lastRewardClaimEpochMs > safeLastSessionEpochMs
+            ? safeLastSessionEpochMs
+            : lastRewardClaimEpochMs);
     return PlayerProgress(
       highScore: highScore.clamp(0, maxHighScore),
       totalSessions: totalSessions < 0 ? 0 : totalSessions,
-      lastSessionEpochMs: lastSessionEpochMs < 0 ? 0 : lastSessionEpochMs,
+      lastSessionEpochMs: safeLastSessionEpochMs,
       progressLevel: progressLevel.clamp(1, maxProgressLevel),
       currentStreakDay: currentStreakDay.clamp(1, maxStreakDay),
-      lastRewardClaimEpochMs:
-          lastRewardClaimEpochMs < 0 ? 0 : lastRewardClaimEpochMs,
+      lastRewardClaimEpochMs: safeLastRewardEpochMs,
     );
   }
 

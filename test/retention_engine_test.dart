@@ -46,11 +46,34 @@ void main() {
 
     expect(
       engine.validateTimeIntegrity(
-        now: now.add(Duration(days: config.maxStreakDays * 4)),
+        now: now.add(Duration(days: config.maxAllowedTimeJumpDays + 1)),
         lastClaimDate: now,
         lastSessionDate: now,
       ),
       TimeValidationResult.suspiciousClockJump,
+    );
+  });
+
+  test('Streak engine caps streak at max and resets after missing day', () {
+    const RetentionConfig config = RetentionConfig.defaults;
+    final StreakEngine engine = StreakEngine(config);
+    final DateTime now = DateTime(2026, 1, 10, 12);
+
+    expect(
+      engine.nextStreakDay(
+        currentStreakDay: config.maxStreakDays,
+        lastClaimDate: now.subtract(const Duration(days: 1)),
+        now: now,
+      ),
+      config.maxStreakDays,
+    );
+    expect(
+      engine.nextStreakDay(
+        currentStreakDay: 4,
+        lastClaimDate: now.subtract(const Duration(days: 3)),
+        now: now,
+      ),
+      1,
     );
   });
 }

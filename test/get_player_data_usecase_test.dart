@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sky_defense/domain/entities/player_economy.dart';
 import 'package:sky_defense/domain/entities/player_profile.dart';
 import 'package:sky_defense/domain/entities/player_progress.dart';
+import 'package:sky_defense/domain/entities/result.dart';
 import 'package:sky_defense/domain/entities/player_settings.dart';
 import 'package:sky_defense/domain/repositories/player_repository.dart';
 import 'package:sky_defense/domain/usecases/get_player_data_usecase.dart';
@@ -12,12 +13,14 @@ class _FakePlayerRepository implements PlayerRepository {
   final PlayerProfile _profile;
 
   @override
-  Future<PlayerProfile> getPlayerProfile() async {
-    return _profile;
+  Future<Result<PlayerProfile>> getPlayerProfile() async {
+    return Success<PlayerProfile>(_profile);
   }
 
   @override
-  Future<void> savePlayerProfile(PlayerProfile profile) async {}
+  Future<Result<void>> savePlayerProfile(PlayerProfile profile) async {
+    return const Success<void>(null);
+  }
 }
 
 void main() {

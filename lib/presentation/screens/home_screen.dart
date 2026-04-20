@@ -37,7 +37,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final economyConfig = ref.watch(resolvedEconomyConfigProvider);
     final gameBalanceConfig = ref.watch(resolvedGameBalanceConfigProvider);
     final retentionConfig = ref.watch(resolvedRetentionConfigProvider);
-    final GameState gameState = ref.watch(gameManagerProvider);
+    final GameState gameState =
+        ref.watch(gameManagerProvider.select((GameSession session) => session.gameState));
 
     return Scaffold(
       appBar: AppBar(

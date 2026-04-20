@@ -44,7 +44,7 @@ class StreakEngine {
       final int sessionDeltaDays = now
           .difference(DateTime(lastSessionDate.year, lastSessionDate.month, lastSessionDate.day))
           .inDays;
-      if (sessionDeltaDays > _config.maxStreakDays * 3) {
+      if (sessionDeltaDays > _config.maxAllowedTimeJumpDays) {
         return TimeValidationResult.suspiciousClockJump;
       }
     }
@@ -53,7 +53,7 @@ class StreakEngine {
       final int claimDeltaDays = now
           .difference(DateTime(lastClaimDate.year, lastClaimDate.month, lastClaimDate.day))
           .inDays;
-      if (claimDeltaDays > _config.maxStreakDays * 3) {
+      if (claimDeltaDays > _config.maxAllowedTimeJumpDays) {
         return TimeValidationResult.suspiciousClockJump;
       }
     }
@@ -61,28 +61,41 @@ class StreakEngine {
     return TimeValidationResult.valid;
   }
 
-  int nextStreakDay({
+  int updateStreak({
     required int currentStreakDay,
-    required DateTime? lastClaimDate,
     required DateTime now,
+    required DateTime? lastClaimDate,
   }) {
     if (lastClaimDate == null) {
       return 1;
     }
 
-    final int dayDelta = DateTime(now.year, now.month, now.day)
-        .difference(DateTime(lastClaimDate.year, lastClaimDate.month, lastClaimDate.day))
-        .inDays;
-
+    final DateTime today = DateTime(now.year, now.month, now.day);
+    final DateTime lastDay = DateTime(
+      lastClaimDate.year,
+      lastClaimDate.month,
+      lastClaimDate.day,
+    );
+    final int dayDelta = today.difference(lastDay).inDays;
     if (dayDelta <= 0) {
       return currentStreakDay.clamp(1, _config.maxStreakDays);
     }
-
     if (dayDelta == 1) {
-      final int candidate = currentStreakDay + 1;
-      return candidate > _config.maxStreakDays ? 1 : candidate;
+      final int incremented = currentStreakDay + 1;
+      return incremented.clamp(1, _config.maxStreakDays);
     }
-
     return 1;
+  }
+
+  int nextStreakDay({
+    required int currentStreakDay,
+    required DateTime? lastClaimDate,
+    required DateTime now,
+  }) {
+    return updateStreak(
+      currentStreakDay: currentStreakDay,
+      now: now,
+      lastClaimDate: lastClaimDate,
+    );
   }
 }

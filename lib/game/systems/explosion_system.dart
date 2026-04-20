@@ -1,23 +1,63 @@
-import 'package:sky_defense/core/config/game_balance_config.dart';
+import 'package:sky_defense/game/entities/explosion.dart';
 
 class ExplosionSystem {
-  ExplosionSystem(this._config);
+  ExplosionSystem({
+    required double defaultRadius,
+    required double defaultLifetime,
+  })  : _defaultRadius = defaultRadius,
+        _defaultLifetime = defaultLifetime;
 
-  final GameBalanceConfig _config;
-  int _activeExplosions = 0;
+  final double _defaultRadius;
+  final double _defaultLifetime;
+  static const double _minLifetimeSeconds = 0.016;
+  final List<Explosion> _explosions = <Explosion>[];
+  int _counter = 0;
 
-  int get activeExplosions => _activeExplosions;
-
-  double createExplosionRadius() {
-    _activeExplosions += 1;
-    return _config.baseExplosionRadius;
+  Explosion createExplosion(
+    ({double x, double y}) position, {
+    double? radius,
+    double? lifetime,
+  }) {
+    final double requestedLifetime = lifetime ?? _defaultLifetime;
+    final double safeLifetime = requestedLifetime < _minLifetimeSeconds
+        ? _minLifetimeSeconds
+        : requestedLifetime;
+    final Explosion explosion = Explosion(
+      id: 'explosion_${_counter++}',
+      x: position.x,
+      y: position.y,
+      radius: radius ?? _defaultRadius,
+      lifetime: safeLifetime,
+      isActive: true,
+    );
+    _explosions.add(explosion);
+    return explosion;
   }
 
-  void clearExplosion() {
-    if (_activeExplosions == 0) {
-      return;
+  void update(double dtSeconds) {
+    for (int i = 0; i < _explosions.length; i += 1) {
+      final Explosion current = _explosions[i];
+      if (!current.isActive) {
+        continue;
+      }
+      final double nextLifetime = current.lifetime - dtSeconds;
+      _explosions[i] = current.copyWith(
+        lifetime: nextLifetime < 0 ? 0 : nextLifetime,
+        isActive: nextLifetime > 0,
+      );
     }
-    _activeExplosions -= 1;
+    _explosions.removeWhere((Explosion explosion) => !explosion.isActive);
+  }
+
+  List<Explosion> getExplosions() {
+    return List<Explosion>.unmodifiable(_explosions);
+  }
+
+  void clearAll() {
+    _explosions.clear();
+  }
+
+  void reset() {
+    clearAll();
   }
 }
-

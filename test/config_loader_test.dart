@@ -9,7 +9,8 @@ void main() {
     final Map<String, String> assets = <String, String>{
       'assets/config/economy.json': '{"version":999,"baseRewardPerSession":-1}',
       'assets/config/game_balance.json': '{"version":1,"collisionTolerance":8.0}',
-      'assets/config/retention.json': '{"version":1,"dailyRewardBase":50,"streakBonusStep":25,"maxStreakDays":7}',
+      'assets/config/retention.json':
+          '{"version":1,"dailyRewardBase":50,"streakBonusStep":25,"maxStreakDays":7,"maxAllowedTimeJumpDays":0}',
     };
     final ConfigLoader loader = ConfigLoader(
       reader: (String path) async => assets[path] ?? '{}',
@@ -22,6 +23,10 @@ void main() {
     expect(economy.version, EconomyConfig.defaults.version);
     expect(economy.baseRewardPerSession, EconomyConfig.defaults.baseRewardPerSession);
     expect(gameBalance.collisionTolerance, 8.0);
-    expect(retention.maxStreakDays, 7);
+    expect(retention.maxStreakDays, RetentionConfig.defaults.maxStreakDays);
+    expect(
+      retention.maxAllowedTimeJumpDays,
+      RetentionConfig.defaults.maxAllowedTimeJumpDays,
+    );
   });
 }

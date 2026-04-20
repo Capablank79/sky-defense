@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
+import 'package:sky_defense/core/config/economy_config.dart';
+import 'package:sky_defense/core/config/retention_config.dart';
 import 'package:sky_defense/core/constants/app_constants.dart';
 import 'package:sky_defense/domain/entities/player_economy.dart';
 import 'package:sky_defense/domain/entities/player_profile.dart';
@@ -19,40 +21,55 @@ class MigrationManager {
     final Map<dynamic, dynamic> backupMap = _readMap(
       box.get(AppConstants.playerDataBackupKey),
     );
-    if (inProgress) {
-      await box.putAll(<dynamic, dynamic>{
-        AppConstants.playerDataKey: backupMap.isEmpty ? _fallbackPlayerMap() : backupMap,
-        AppConstants.schemaVersionKey: storedVersion,
-        AppConstants.migrationInProgressKey: false,
-      });
-    }
-    final Map<dynamic, dynamic> original = _readMap(
-      box.get(AppConstants.playerDataKey),
-    );
+    Map<dynamic, dynamic> rollbackBackup =
+        _isValidBackup(backupMap) ? backupMap : _fallbackPlayerMap();
     try {
+      if (inProgress) {
+        final Map<dynamic, dynamic> recovered =
+            _isValidBackup(backupMap) ? backupMap : _fallbackPlayerMap();
+        rollbackBackup = recovered;
+        await box.putAll(<dynamic, dynamic>{
+          AppConstants.playerDataKey: recovered,
+          AppConstants.schemaVersionKey: storedVersion,
+          AppConstants.migrationInProgressKey: false,
+        });
+      }
+
+      final Map<dynamic, dynamic> original = _readMap(
+        box.get(AppConstants.playerDataKey),
+      );
+
       if (storedVersion >= currentSchemaVersion) {
-        await box.put(AppConstants.migrationInProgressKey, false);
+        await box.putAll(<dynamic, dynamic>{
+          AppConstants.playerDataKey: _sanitizeMigratedMap(
+            _isValidBackup(original) ? original : _fallbackPlayerMap(),
+          ),
+          AppConstants.migrationInProgressKey: false,
+        });
         return;
       }
+
+      final Map<dynamic, dynamic> backup =
+          _isValidBackup(original) ? original : _fallbackPlayerMap();
+      rollbackBackup = backup;
       await box.putAll(<dynamic, dynamic>{
         AppConstants.migrationInProgressKey: true,
-        AppConstants.playerDataBackupKey: original,
+        AppConstants.playerDataBackupKey: backup,
       });
-      Map<dynamic, dynamic> migrated = Map<dynamic, dynamic>.from(original);
 
-      final Map<int, Map<dynamic, dynamic> Function(Map<dynamic, dynamic>)> steps =
-          <int, Map<dynamic, dynamic> Function(Map<dynamic, dynamic>)>{
-        0: _migrateToV1,
-        1: _migrateToV2,
-      };
-
+      Map<dynamic, dynamic> migrated = Map<dynamic, dynamic>.from(backup);
       int version = storedVersion;
       while (version < currentSchemaVersion) {
-        final step = steps[version];
-        if (step == null) {
-          break;
+        switch (version) {
+          case 0:
+            migrated = _migrateToV1(migrated);
+            break;
+          case 1:
+            migrated = _migrateToV2(migrated);
+            break;
+          default:
+            throw StateError('Missing migration step for version $version');
         }
-        migrated = Map<dynamic, dynamic>.from(step(migrated));
         version += 1;
       }
 
@@ -65,10 +82,8 @@ class MigrationManager {
     } catch (error) {
       debugPrint('MigrationManager.applyMigrations failed: $error');
       await box.putAll(<dynamic, dynamic>{
-        AppConstants.playerDataBackupKey: original,
-        AppConstants.playerDataKey: original.isEmpty
-            ? (backupMap.isEmpty ? _fallbackPlayerMap() : backupMap)
-            : original,
+        AppConstants.playerDataBackupKey: rollbackBackup,
+        AppConstants.playerDataKey: rollbackBackup,
         AppConstants.schemaVersionKey: storedVersion,
         AppConstants.migrationInProgressKey: false,
       });
@@ -76,15 +91,25 @@ class MigrationManager {
   }
 
   Map<dynamic, dynamic> _migrateToV1(Map<dynamic, dynamic> source) {
+    final Object? progressRaw = source['progress'];
+    final Object? economyRaw = source['economy'];
+    final Object? settingsRaw = source['settings'];
+    if (progressRaw != null && progressRaw is! Map) {
+      throw const FormatException('Invalid progress payload');
+    }
+    if (economyRaw != null && economyRaw is! Map) {
+      throw const FormatException('Invalid economy payload');
+    }
+    if (settingsRaw != null && settingsRaw is! Map) {
+      throw const FormatException('Invalid settings payload');
+    }
+
     final Map<dynamic, dynamic> progress =
-        (source['progress'] as Map<dynamic, dynamic>?) ??
-            <dynamic, dynamic>{};
+        (progressRaw as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{};
     final Map<dynamic, dynamic> economy =
-        (source['economy'] as Map<dynamic, dynamic>?) ??
-            <dynamic, dynamic>{};
+        (economyRaw as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{};
     final Map<dynamic, dynamic> settings =
-        (source['settings'] as Map<dynamic, dynamic>?) ??
-            <dynamic, dynamic>{};
+        (settingsRaw as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{};
 
     return <dynamic, dynamic>{
       'progress': <dynamic, dynamic>{
@@ -106,10 +131,10 @@ class MigrationManager {
 
   Map<dynamic, dynamic> _migrateToV2(Map<dynamic, dynamic> source) {
     final Map<dynamic, dynamic> progress =
-        (source['progress'] as Map<dynamic, dynamic>?) ??
-            <dynamic, dynamic>{};
+        (source['progress'] as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{};
     progress['currentStreakDay'] = progress['currentStreakDay'] ?? 1;
-    progress['lastRewardClaimEpochMs'] = progress['lastRewardClaimEpochMs'] ?? 0;
+    progress['lastRewardClaimEpochMs'] =
+        progress['lastRewardClaimEpochMs'] ?? 0;
 
     return <dynamic, dynamic>{
       ...source,
@@ -118,21 +143,15 @@ class MigrationManager {
   }
 
   Map<dynamic, dynamic> _sanitizeMigratedMap(Map<dynamic, dynamic> source) {
-    final Map<dynamic, dynamic> progress =
-        Map<dynamic, dynamic>.from(
-          (source['progress'] as Map<dynamic, dynamic>?) ??
-              <dynamic, dynamic>{},
-        );
-    final Map<dynamic, dynamic> economy =
-        Map<dynamic, dynamic>.from(
-          (source['economy'] as Map<dynamic, dynamic>?) ??
-              <dynamic, dynamic>{},
-        );
-    final Map<dynamic, dynamic> settings =
-        Map<dynamic, dynamic>.from(
-          (source['settings'] as Map<dynamic, dynamic>?) ??
-              <dynamic, dynamic>{},
-        );
+    final Map<dynamic, dynamic> progress = Map<dynamic, dynamic>.from(
+      (source['progress'] as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{},
+    );
+    final Map<dynamic, dynamic> economy = Map<dynamic, dynamic>.from(
+      (source['economy'] as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{},
+    );
+    final Map<dynamic, dynamic> settings = Map<dynamic, dynamic>.from(
+      (source['settings'] as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{},
+    );
 
     final PlayerProfile profile = PlayerProfile(
       progress: PlayerProgress(
@@ -152,7 +171,12 @@ class MigrationManager {
         soundEnabled: (settings['soundEnabled'] as bool?) ?? true,
         hapticEnabled: (settings['hapticEnabled'] as bool?) ?? true,
       ),
-    ).toSanitized();
+    ).toSanitized(
+      rules: PlayerSanitizationRules.fromConfig(
+        economy: EconomyConfig.defaults,
+        retention: RetentionConfig.defaults,
+      ),
+    );
 
     return <dynamic, dynamic>{
       'progress': <dynamic, dynamic>{
@@ -182,6 +206,15 @@ class MigrationManager {
       return Map<dynamic, dynamic>.from(value);
     }
     return <dynamic, dynamic>{};
+  }
+
+  bool _isValidBackup(Map<dynamic, dynamic> map) {
+    if (map.isEmpty) {
+      return false;
+    }
+    return map.containsKey('progress') &&
+        map.containsKey('economy') &&
+        map.containsKey('settings');
   }
 
   Map<dynamic, dynamic> _fallbackPlayerMap() {

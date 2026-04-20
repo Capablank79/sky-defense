@@ -78,6 +78,7 @@ class PlayerProfileModel extends PlayerProfile {
         'soundEnabled': settings.soundEnabled,
         'hapticEnabled': settings.hapticEnabled,
       },
+      'lastUpdatedAt': DateTime.now().millisecondsSinceEpoch,
     };
   }
 

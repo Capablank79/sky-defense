@@ -2,5 +2,6 @@
   "version": 1,
   "dailyRewardBase": 50,
   "streakBonusStep": 25,
-  "maxStreakDays": 7
+  "maxStreakDays": 7,
+  "maxAllowedTimeJumpDays": 21
 }

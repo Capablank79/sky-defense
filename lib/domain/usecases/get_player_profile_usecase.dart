@@ -1,4 +1,5 @@
 import 'package:sky_defense/domain/entities/player_profile.dart';
+import 'package:sky_defense/domain/entities/result.dart';
 import 'package:sky_defense/domain/repositories/player_repository.dart';
 
 class GetPlayerProfileUseCase {
@@ -6,7 +7,7 @@ class GetPlayerProfileUseCase {
 
   final PlayerRepository _repository;
 
-  Future<PlayerProfile> call() {
+  Future<Result<PlayerProfile>> call() {
     return _repository.getPlayerProfile();
   }
 }

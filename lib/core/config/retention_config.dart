@@ -6,6 +6,7 @@ class RetentionConfig implements VersionedConfig {
     required this.dailyRewardBase,
     required this.streakBonusStep,
     required this.maxStreakDays,
+    required this.maxAllowedTimeJumpDays,
   });
 
   @override
@@ -13,12 +14,14 @@ class RetentionConfig implements VersionedConfig {
   final int dailyRewardBase;
   final int streakBonusStep;
   final int maxStreakDays;
+  final int maxAllowedTimeJumpDays;
 
   bool isValid() {
     return version > 0 &&
         dailyRewardBase > 0 &&
         streakBonusStep >= 0 &&
-        maxStreakDays > 0;
+        maxStreakDays > 0 &&
+        maxAllowedTimeJumpDays > 0;
   }
 
   RetentionConfig validateConfig() {
@@ -36,6 +39,9 @@ class RetentionConfig implements VersionedConfig {
       streakBonusStep:
           (json['streakBonusStep'] as num?)?.toInt() ?? defaults.streakBonusStep,
       maxStreakDays: (json['maxStreakDays'] as num?)?.toInt() ?? defaults.maxStreakDays,
+      maxAllowedTimeJumpDays:
+          (json['maxAllowedTimeJumpDays'] as num?)?.toInt() ??
+              defaults.maxAllowedTimeJumpDays,
     );
     return parsed.validateConfig();
   }
@@ -45,5 +51,6 @@ class RetentionConfig implements VersionedConfig {
     dailyRewardBase: 50,
     streakBonusStep: 25,
     maxStreakDays: 7,
+    maxAllowedTimeJumpDays: 21,
   );
 }

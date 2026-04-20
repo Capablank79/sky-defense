@@ -1,35 +1,22 @@
 import 'dart:math';
 
 import 'package:flame/components.dart';
-import 'package:sky_defense/game/entities/missile.dart';
+import 'package:sky_defense/game/entities/interceptor_missile.dart';
 
-class MissileSystem {
-  MissileSystem({
-    double minX = -1000,
-    double maxX = 1000,
-    double minY = -100,
-    double maxY = 2000,
-  })  : _minX = minX,
-        _maxX = maxX,
-        _minY = minY,
-        _maxY = maxY;
-
-  final List<Missile> _missiles = <Missile>[];
-  final double _minX;
-  final double _maxX;
-  final double _minY;
-  final double _maxY;
+class InterceptorSystem {
+  final List<InterceptorMissile> _interceptors = <InterceptorMissile>[];
   int _counter = 0;
 
-  Missile spawnMissile({
+  InterceptorMissile launch({
+    required String baseId,
     required double startX,
     required double startY,
     required double targetX,
     required double targetY,
     required double speed,
   }) {
-    final Missile missile = Missile(
-      id: 'missile_${_counter++}',
+    final InterceptorMissile interceptor = InterceptorMissile(
+      id: 'interceptor_${_counter++}',
       x: startX,
       y: startY,
       origin: Vector2(startX, startY),
@@ -37,14 +24,15 @@ class MissileSystem {
       progress: 0,
       speed: speed,
       isActive: true,
+      baseId: baseId,
     );
-    _missiles.add(missile);
-    return missile;
+    _interceptors.add(interceptor);
+    return interceptor;
   }
 
   void update(double dtSeconds) {
-    for (int i = 0; i < _missiles.length; i += 1) {
-      final Missile current = _missiles[i];
+    for (int i = 0; i < _interceptors.length; i += 1) {
+      final InterceptorMissile current = _interceptors[i];
       if (!current.isActive) {
         continue;
       }
@@ -52,7 +40,7 @@ class MissileSystem {
       final double pathDy = current.target.y - current.origin.y;
       final double pathDistance = sqrt((pathDx * pathDx) + (pathDy * pathDy));
       if (pathDistance <= 0.0001) {
-        _missiles[i] = current.copyWith(
+        _interceptors[i] = current.copyWith(
           progress: 1,
           x: current.target.x,
           y: current.target.y,
@@ -73,39 +61,31 @@ class MissileSystem {
       final double nextProgress =
           (travelledDistance / pathDistance).clamp(0, 1);
       final bool arrived = nextProgress >= 1;
-      _missiles[i] = current.copyWith(
+      _interceptors[i] = current.copyWith(
         progress: nextProgress,
         x: arrived ? current.target.x : nextX,
         y: arrived ? current.target.y : nextY,
       );
     }
-    _missiles.removeWhere(
-      (Missile missile) =>
-          !missile.isActive ||
-          missile.x < _minX ||
-          missile.x > _maxX ||
-          missile.y < _minY ||
-          missile.y > _maxY,
+  }
+
+  List<InterceptorMissile> getInterceptors() {
+    return List<InterceptorMissile>.unmodifiable(_interceptors);
+  }
+
+  List<InterceptorMissile> getArrivedInterceptors() {
+    return List<InterceptorMissile>.unmodifiable(
+      _interceptors
+          .where((InterceptorMissile i) => i.isActive && i.progress >= 1),
     );
   }
 
-  void removeMissile(String id) {
-    _missiles.removeWhere((Missile missile) => missile.id == id);
-  }
-
-  List<Missile> getMissiles() {
-    return List<Missile>.unmodifiable(_missiles);
-  }
-
-  List<Missile> getArrivedMissiles() {
-    return List<Missile>.unmodifiable(
-      _missiles.where(
-          (Missile missile) => missile.isActive && missile.progress >= 1),
-    );
+  void removeInterceptor(String id) {
+    _interceptors.removeWhere((InterceptorMissile i) => i.id == id);
   }
 
   void clearAll() {
-    _missiles.clear();
+    _interceptors.clear();
   }
 
   void reset() {

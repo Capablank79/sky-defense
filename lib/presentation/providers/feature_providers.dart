@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sky_defense/core/config/game_config_provider.dart';
+import 'package:sky_defense/core/config/retention_config.dart';
 import 'package:sky_defense/core/retention/daily_reward_engine.dart';
 import 'package:sky_defense/core/retention/streak_engine.dart';
 import 'package:sky_defense/core/config/economy_config.dart';
@@ -27,6 +28,7 @@ final playerProvider =
     dailyRewardEngine: ref.watch(dailyRewardEngineProvider),
     streakEngine: ref.watch(streakEngineProvider),
     economyConfig: ref.watch(resolvedEconomyConfigProvider),
+    retentionConfig: ref.watch(resolvedRetentionConfigProvider),
   ),
 );
 
@@ -37,11 +39,13 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
     required DailyRewardEngine dailyRewardEngine,
     required StreakEngine streakEngine,
     required EconomyConfig economyConfig,
+    required RetentionConfig retentionConfig,
   })  : _getPlayerDataUseCase = getPlayerDataUseCase,
         _savePlayerDataUseCase = savePlayerDataUseCase,
         _dailyRewardEngine = dailyRewardEngine,
         _streakEngine = streakEngine,
         _economyConfig = economyConfig,
+        _retentionConfig = retentionConfig,
         super(const AsyncLoading());
 
   final GetPlayerDataUseCase _getPlayerDataUseCase;
@@ -49,6 +53,7 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
   final DailyRewardEngine _dailyRewardEngine;
   final StreakEngine _streakEngine;
   final EconomyConfig _economyConfig;
+  final RetentionConfig _retentionConfig;
   bool _initialized = false;
 
   Future<void> loadPlayerData() async {
@@ -86,7 +91,7 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
   Future<void> savePlayerData(PlayerProfile profile) async {
     final Result<void> result = await _savePlayerDataUseCase(profile);
     if (result.isSuccess) {
-      state = AsyncData(profile.toSanitized());
+      state = AsyncData(profile.toSanitized(rules: _sanitizationRules()));
     } else {
       state = AsyncError((result as Failure<void>).message, StackTrace.current);
     }
@@ -103,7 +108,7 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
     );
     final Result<void> result = await _savePlayerDataUseCase(updated);
     if (result.isSuccess) {
-      state = AsyncData(updated.toSanitized());
+      state = AsyncData(updated.toSanitized(rules: _sanitizationRules()));
     } else {
       state = AsyncError((result as Failure<void>).message, StackTrace.current);
     }
@@ -112,10 +117,12 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
   bool isDailyRewardAvailable(PlayerProfile profile, DateTime now) {
     final DateTime? lastClaim = profile.progress.lastRewardClaimEpochMs <= 0
         ? null
-        : DateTime.fromMillisecondsSinceEpoch(profile.progress.lastRewardClaimEpochMs);
+        : DateTime.fromMillisecondsSinceEpoch(
+            profile.progress.lastRewardClaimEpochMs);
     final DateTime? lastSession = profile.progress.lastSessionEpochMs <= 0
         ? null
-        : DateTime.fromMillisecondsSinceEpoch(profile.progress.lastSessionEpochMs);
+        : DateTime.fromMillisecondsSinceEpoch(
+            profile.progress.lastSessionEpochMs);
     final TimeValidationResult validation = _streakEngine.validateTimeIntegrity(
       now: now,
       lastClaimDate: lastClaim,
@@ -124,7 +131,8 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
     if (validation != TimeValidationResult.valid) {
       return false;
     }
-    return _streakEngine.canClaimToday(lastClaimDate: lastClaim, now: now);
+    return _dailyRewardEngine.isRewardAvailable(
+        now: now, lastClaimDate: lastClaim);
   }
 
   Future<int> claimDailyReward() async {
@@ -132,10 +140,12 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
     final DateTime now = DateTime.now();
     final DateTime? lastClaim = current.progress.lastRewardClaimEpochMs <= 0
         ? null
-        : DateTime.fromMillisecondsSinceEpoch(current.progress.lastRewardClaimEpochMs);
+        : DateTime.fromMillisecondsSinceEpoch(
+            current.progress.lastRewardClaimEpochMs);
     final DateTime? lastSession = current.progress.lastSessionEpochMs <= 0
         ? null
-        : DateTime.fromMillisecondsSinceEpoch(current.progress.lastSessionEpochMs);
+        : DateTime.fromMillisecondsSinceEpoch(
+            current.progress.lastSessionEpochMs);
     final TimeValidationResult validation = _streakEngine.validateTimeIntegrity(
       now: now,
       lastClaimDate: lastClaim,
@@ -147,9 +157,10 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
       );
       final Result<void> resetResult = await _savePlayerDataUseCase(reset);
       if (resetResult.isSuccess) {
-        state = AsyncData(reset.toSanitized());
+        state = AsyncData(reset.toSanitized(rules: _sanitizationRules()));
       } else {
-        state = AsyncError((resetResult as Failure<void>).message, StackTrace.current);
+        state = AsyncError(
+            (resetResult as Failure<void>).message, StackTrace.current);
       }
       return 0;
     }
@@ -164,11 +175,20 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
       now: now,
     );
     final int safeStreak = _dailyRewardEngine.clampStreak(streakDay);
-    final int reward = _dailyRewardEngine.calculateDailyReward(safeStreak);
+    final DailyRewardClaimResult claim = _dailyRewardEngine.claimReward(
+      currentStreakDay: safeStreak,
+      now: now,
+      lastClaimDate: lastClaim,
+      maxStreakDays: _retentionConfig.maxStreakDays,
+    );
+    if (!claim.claimed) {
+      return 0;
+    }
+    final int reward = claim.reward;
 
     final PlayerProfile updated = current.copyWith(
       progress: current.progress.copyWith(
-        currentStreakDay: safeStreak,
+        currentStreakDay: claim.nextStreakDay,
         lastRewardClaimEpochMs: now.millisecondsSinceEpoch,
       ),
       economy: current.economy.copyWith(
@@ -177,7 +197,7 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
     );
     final Result<void> result = await _savePlayerDataUseCase(updated);
     if (result.isSuccess) {
-      state = AsyncData(updated.toSanitized());
+      state = AsyncData(updated.toSanitized(rules: _sanitizationRules()));
     } else {
       state = AsyncError((result as Failure<void>).message, StackTrace.current);
       return 0;
@@ -203,7 +223,7 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
       state = AsyncError((result as Failure<void>).message, StackTrace.current);
       return false;
     }
-    state = AsyncData(updated.toSanitized());
+    state = AsyncData(updated.toSanitized(rules: _sanitizationRules()));
     return true;
   }
 
@@ -226,7 +246,7 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
       state = AsyncError((result as Failure<void>).message, StackTrace.current);
       return false;
     }
-    state = AsyncData(updated.toSanitized());
+    state = AsyncData(updated.toSanitized(rules: _sanitizationRules()));
     return true;
   }
 
@@ -240,8 +260,19 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
         currentStreakDay: 1,
         lastRewardClaimEpochMs: 0,
       ),
-      economy: PlayerEconomy(credits: _economyConfig.initialCredits, premiumCredits: 0),
+      economy: PlayerEconomy(
+          credits: _economyConfig.initialCredits, premiumCredits: 0),
       settings: const PlayerSettings(soundEnabled: true, hapticEnabled: true),
+    );
+  }
+
+  PlayerSanitizationRules _sanitizationRules() {
+    return PlayerSanitizationRules(
+      maxCredits: _economyConfig.maxCredits,
+      maxPremiumCredits: _economyConfig.maxPremiumCredits,
+      maxHighScore: _economyConfig.maxHighScore,
+      maxProgressLevel: _economyConfig.maxProgressLevel,
+      maxStreakDay: _retentionConfig.maxStreakDays,
     );
   }
 }

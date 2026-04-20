@@ -11,8 +11,8 @@ class _CaptureRepository implements PlayerRepository {
   PlayerProfile? lastSaved;
 
   @override
-  Future<PlayerProfile> getPlayerProfile() async {
-    return lastSaved ??
+  Future<Result<PlayerProfile>> getPlayerProfile() async {
+    return Success<PlayerProfile>(lastSaved ??
         const PlayerProfile(
           progress: PlayerProgress(
             highScore: 0,
@@ -24,12 +24,13 @@ class _CaptureRepository implements PlayerRepository {
           ),
           economy: PlayerEconomy(credits: 0, premiumCredits: 0),
           settings: PlayerSettings(soundEnabled: true, hapticEnabled: true),
-        );
+        ));
   }
 
   @override
-  Future<void> savePlayerProfile(PlayerProfile profile) async {
+  Future<Result<void>> savePlayerProfile(PlayerProfile profile) async {
     lastSaved = profile;
+    return const Success<void>(null);
   }
 }
 
@@ -79,5 +80,39 @@ void main() {
     expect(result is Success<void>, true);
     expect(repo.lastSaved?.economy.credits, lessThanOrEqualTo(9999999));
     expect(repo.lastSaved?.progress.progressLevel, lessThanOrEqualTo(999));
+  });
+
+  test('SavePlayerDataUseCase enforces logical timestamp consistency', () async {
+    final _CaptureRepository repo = _CaptureRepository();
+    final SavePlayerDataUseCase useCase = SavePlayerDataUseCase(
+      repo,
+      rules: const PlayerSanitizationRules(
+        maxCredits: 1000,
+        maxPremiumCredits: 100,
+        maxHighScore: 10000,
+        maxProgressLevel: 50,
+        maxStreakDay: 7,
+      ),
+    );
+    const PlayerProfile invalid = PlayerProfile(
+      progress: PlayerProgress(
+        highScore: 100,
+        totalSessions: 10,
+        lastSessionEpochMs: 1000,
+        progressLevel: 2,
+        currentStreakDay: 3,
+        lastRewardClaimEpochMs: 2000,
+      ),
+      economy: PlayerEconomy(credits: 10, premiumCredits: 0),
+      settings: PlayerSettings(soundEnabled: true, hapticEnabled: true),
+    );
+
+    final Result<void> result = await useCase(invalid);
+
+    expect(result is Success<void>, true);
+    expect(
+      repo.lastSaved?.progress.lastSessionEpochMs,
+      greaterThanOrEqualTo(repo.lastSaved?.progress.lastRewardClaimEpochMs ?? 0),
+    );
   });
 }

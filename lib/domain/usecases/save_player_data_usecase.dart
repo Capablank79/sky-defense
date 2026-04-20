@@ -3,21 +3,19 @@ import 'package:sky_defense/domain/entities/result.dart';
 import 'package:sky_defense/domain/repositories/player_repository.dart';
 
 class SavePlayerDataUseCase {
-  const SavePlayerDataUseCase(
+  SavePlayerDataUseCase(
     this._repository, {
-    this.rules = PlayerSanitizationRules.defaults,
-  });
+    PlayerSanitizationRules? rules,
+  }) : rules = rules ?? PlayerSanitizationRules.defaults;
 
   final PlayerRepository _repository;
   final PlayerSanitizationRules rules;
 
   Future<Result<void>> call(PlayerProfile profile) async {
-    try {
-      final PlayerProfile sanitized = profile.toSanitized(rules: rules);
-      await _repository.savePlayerProfile(sanitized);
-      return const Success<void>(null);
-    } catch (error) {
-      return Failure<void>('Unable to save player data', error: error);
+    final PlayerProfile sanitized = profile.toSanitized(rules: rules);
+    if (!sanitized.isValid(rules: rules)) {
+      return const Failure<void>('Player data is invalid after sanitization');
     }
+    return _repository.savePlayerProfile(sanitized);
   }
 }
