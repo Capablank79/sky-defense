@@ -1,0 +1,28 @@
+# Flutter
+.dart_tool/
+.packages
+.pub/
+build/
+
+# Android
+android/.gradle/
+android/app/build/
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# Web
+web/flutter_service_worker.js
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Misc
+*.lock
