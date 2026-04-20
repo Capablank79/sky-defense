@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "baseSpawnIntervalSeconds": 1.25,
+  "maxConcurrentThreats": 8,
+  "baseThreatSpeed": 1.0,
+  "baseExplosionRadius": 24.0,
+  "collisionTolerance": 8.0
+}

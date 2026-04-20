@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "baseRewardPerSession": 100,
+  "comboMultiplierStep": 0.25,
+  "maxComboMultiplier": 3.0,
+  "maxCredits": 9999999,
+  "maxPremiumCredits": 99999,
+  "maxHighScore": 9999999,
+  "maxProgressLevel": 999,
+  "initialCredits": 1000,
+  "upgradeCostPerLevel": 200
+}
