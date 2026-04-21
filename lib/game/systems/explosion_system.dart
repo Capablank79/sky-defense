@@ -10,7 +10,7 @@ class ExplosionSystem {
   final double _defaultRadius;
   final double _defaultLifetime;
   static const double _minLifetimeSeconds = 0.016;
-  final List<Explosion> _explosions = <Explosion>[];
+  List<Explosion> _explosions = <Explosion>[];
   int _counter = 0;
 
   Explosion createExplosion(
@@ -54,10 +54,14 @@ class ExplosionSystem {
   }
 
   void clearAll() {
-    _explosions.clear();
+    _explosions = <Explosion>[];
   }
 
   void reset() {
+    clearAll();
+  }
+
+  void clear() {
     clearAll();
   }
 }

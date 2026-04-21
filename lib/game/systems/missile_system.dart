@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flame/components.dart';
+import 'package:sky_defense/game/entities/base.dart';
 import 'package:sky_defense/game/entities/missile.dart';
 
 class MissileSystem {
@@ -14,7 +15,7 @@ class MissileSystem {
         _minY = minY,
         _maxY = maxY;
 
-  final List<Missile> _missiles = <Missile>[];
+  List<Missile> _missiles = <Missile>[];
   final double _minX;
   final double _maxX;
   final double _minY;
@@ -24,12 +25,14 @@ class MissileSystem {
   Missile spawnMissile({
     required double startX,
     required double startY,
+    required String targetBaseId,
     required double targetX,
     required double targetY,
     required double speed,
   }) {
     final Missile missile = Missile(
       id: 'missile_${_counter++}',
+      targetBaseId: targetBaseId,
       x: startX,
       y: startY,
       origin: Vector2(startX, startY),
@@ -105,10 +108,47 @@ class MissileSystem {
   }
 
   void clearAll() {
-    _missiles.clear();
+    _missiles = <Missile>[];
   }
 
   void reset() {
     clearAll();
+  }
+
+  void clear() {
+    clearAll();
+  }
+
+  bool ensureValidTargets(List<Base> aliveBases) {
+    if (aliveBases.isEmpty) {
+      return false;
+    }
+    for (int i = 0; i < _missiles.length; i += 1) {
+      final Missile missile = _missiles[i];
+      final bool targetIsAlive = aliveBases.any(
+        (Base base) => base.id == missile.targetBaseId,
+      );
+      if (targetIsAlive) {
+        continue;
+      }
+      Base nearest = aliveBases.first;
+      double nearestDistance = double.infinity;
+      for (final Base base in aliveBases) {
+        final double dx = missile.x - base.x;
+        final double dy = missile.y - base.y;
+        final double distance = (dx * dx) + (dy * dy);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearest = base;
+        }
+      }
+      _missiles[i] = missile.copyWith(
+        targetBaseId: nearest.id,
+        origin: Vector2(missile.x, missile.y),
+        target: Vector2(nearest.x, nearest.y),
+        progress: 0,
+      );
+    }
+    return true;
   }
 }

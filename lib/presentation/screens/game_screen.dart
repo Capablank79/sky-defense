@@ -19,6 +19,31 @@ class GameScreen extends ConsumerStatefulWidget {
 
 class _GameScreenState extends ConsumerState<GameScreen> {
   late final SkyDefenseGame _game = ref.read(skyDefenseGameProvider);
+  ProviderSubscription<int?>? _creditsSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _creditsSubscription = ref.listenManual<int?>(
+      playerProvider.select(
+        (AsyncValue<PlayerProfile> value) => value.asData?.value.economy.credits,
+      ),
+      (int? previous, int? next) {
+        if (next != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(gameManagerProvider.notifier).syncPlayerCredits(next);
+          });
+        }
+      },
+      fireImmediately: true,
+    );
+  }
+
+  @override
+  void dispose() {
+    _creditsSubscription?.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -156,14 +181,8 @@ class _GameOverOverlay extends StatelessWidget {
     return Consumer(
       builder: (BuildContext context, WidgetRef ref, Widget? child) {
         final GameSession session = ref.watch(gameManagerProvider);
-        final int credits = ref.watch(
-              playerProvider.select(
-                (AsyncValue<PlayerProfile> value) =>
-                    value.asData?.value.economy.credits,
-              ),
-            ) ??
-            0;
-        final bool canContinue = credits >= GameManager.continueCostCredits;
+        final bool canContinue =
+            session.playerCredits >= GameManager.continueCostCredits;
 
         return Center(
           child: DecoratedBox(
@@ -207,17 +226,12 @@ class _GameOverOverlay extends StatelessWidget {
                       labelKey: 'game_continue_button',
                       isDisabled: !canContinue,
                       onPressed: canContinue
-                          ? () async {
-                              final bool spent = await ref
-                                  .read(playerProvider.notifier)
-                                  .spendCredits(
-                                      GameManager.continueCostCredits);
-                              if (!spent) {
-                                return;
-                              }
-                              ref
-                                  .read(gameManagerProvider.notifier)
-                                  .continueGame();
+                          ? () {
+                              // ignore: avoid_print
+                              print('Continue pressed');
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                ref.read(gameManagerProvider.notifier).continueGame();
+                              });
                             }
                           : null,
                     ),
@@ -226,7 +240,11 @@ class _GameOverOverlay extends StatelessWidget {
                       labelKey: 'game_restart_button',
                       variant: AppButtonVariant.ghost,
                       onPressed: () {
-                        ref.read(gameManagerProvider.notifier).restartGame();
+                        // ignore: avoid_print
+                        print('Restart pressed');
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          ref.read(gameManagerProvider.notifier).restartGame();
+                        });
                       },
                     ),
                   ],

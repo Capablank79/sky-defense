@@ -3,6 +3,7 @@ import 'package:flame/components.dart';
 class Missile {
   const Missile({
     required this.id,
+    required this.targetBaseId,
     required this.x,
     required this.y,
     required this.origin,
@@ -13,6 +14,7 @@ class Missile {
   });
 
   final String id;
+  final String targetBaseId;
   final double x;
   final double y;
   final Vector2 origin;
@@ -23,6 +25,7 @@ class Missile {
 
   Missile copyWith({
     String? id,
+    String? targetBaseId,
     double? x,
     double? y,
     Vector2? origin,
@@ -33,6 +36,7 @@ class Missile {
   }) {
     return Missile(
       id: id ?? this.id,
+      targetBaseId: targetBaseId ?? this.targetBaseId,
       x: x ?? this.x,
       y: y ?? this.y,
       origin: origin ?? this.origin,

@@ -99,7 +99,7 @@ class SkyDefenseGame extends FlameGame with TapCallbacks {
       canvas.translate(dx, dy);
     }
 
-    // TODO(PHASE_3_5_MIGRATION): Replace manual canvas rendering with Flame
+    // PHASE_3_5_MIGRATION: Replace manual canvas rendering with Flame
     // components (e.g. add(MissileComponent()), add(ExplosionComponent())).
     // The component pipeline is required for scalable spatial partitioning,
     // lifecycle management, and future collision optimizations.

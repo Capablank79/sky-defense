@@ -4,7 +4,7 @@ import 'package:flame/components.dart';
 import 'package:sky_defense/game/entities/interceptor_missile.dart';
 
 class InterceptorSystem {
-  final List<InterceptorMissile> _interceptors = <InterceptorMissile>[];
+  List<InterceptorMissile> _interceptors = <InterceptorMissile>[];
   int _counter = 0;
 
   InterceptorMissile launch({
@@ -85,10 +85,14 @@ class InterceptorSystem {
   }
 
   void clearAll() {
-    _interceptors.clear();
+    _interceptors = <InterceptorMissile>[];
   }
 
   void reset() {
+    clearAll();
+  }
+
+  void clear() {
     clearAll();
   }
 }

@@ -2,7 +2,7 @@ import 'package:sky_defense/game/entities/base.dart';
 import 'package:sky_defense/game/debug/debug_flags.dart';
 
 class BaseSystem {
-  final List<Base> _bases = <Base>[];
+  List<Base> _bases = <Base>[];
   double _lastWorldWidth = 0;
   double _lastWorldHeight = 0;
 
@@ -25,21 +25,17 @@ class BaseSystem {
         : (usableWidth > 0 ? usableWidth / (baseCount - 1) : 0);
     final double baseY = worldHeight - bottomOffset;
 
-    _bases
-      ..clear()
-      ..addAll(
-        List<Base>.generate(baseCount, (int index) {
-          final double x = horizontalMargin + (spacing * index);
-          return Base(
-            id: 'base_$index',
-            x: x,
-            y: baseY,
-            ammoMax: kDebugFastFail ? 3 : 10,
-            ammoCurrent: kDebugFastFail ? 3 : 10,
-            ammoRegenRate: kDebugFastFail ? 0.3 : 0.6,
-          );
-        }),
+    _bases = List<Base>.generate(baseCount, (int index) {
+      final double x = horizontalMargin + (spacing * index);
+      return Base(
+        id: 'base_$index',
+        x: x,
+        y: baseY,
+        ammoMax: kDebugFastFail ? 3 : 10,
+        ammoCurrent: kDebugFastFail ? 3 : 10,
+        ammoRegenRate: kDebugFastFail ? 0.3 : 0.6,
       );
+    });
   }
 
   List<Base> getBases() {
@@ -149,6 +145,20 @@ class BaseSystem {
         isDestroyed: false,
         ammoCurrent: base.ammoMax.toDouble(),
       );
+    }
+  }
+
+  void restorePartial() {
+    restoreBasesForContinue(healthRatio: 0.5);
+  }
+
+  void restoreAmmo() {
+    for (int i = 0; i < _bases.length; i += 1) {
+      final Base base = _bases[i];
+      if (base.isDestroyed) {
+        continue;
+      }
+      _bases[i] = base.copyWith(ammoCurrent: base.ammoMax.toDouble());
     }
   }
 

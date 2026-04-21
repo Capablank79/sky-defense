@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sky_defense/game/entities/explosion.dart';
 import 'package:sky_defense/game/entities/base.dart';
@@ -32,6 +33,7 @@ class GameSession {
     required this.currentWave,
     required this.isWaveActive,
     required this.isGameOver,
+    required this.playerCredits,
   });
 
   final GameState gameState;
@@ -43,6 +45,7 @@ class GameSession {
   final int currentWave;
   final bool isWaveActive;
   final bool isGameOver;
+  final int playerCredits;
 
   GameSession copyWith({
     GameState? gameState,
@@ -54,6 +57,7 @@ class GameSession {
     int? currentWave,
     bool? isWaveActive,
     bool? isGameOver,
+    int? playerCredits,
   }) {
     return GameSession(
       gameState: gameState ?? this.gameState,
@@ -66,20 +70,24 @@ class GameSession {
       currentWave: currentWave ?? this.currentWave,
       isWaveActive: isWaveActive ?? this.isWaveActive,
       isGameOver: isGameOver ?? this.isGameOver,
+      playerCredits: playerCredits ?? this.playerCredits,
     );
   }
 
-  static const GameSession initial = GameSession(
-    gameState: GameState.initializing,
-    score: 0,
-    missilesAlive: 0,
-    remainingBases: 0,
-    remainingInterceptors: 0,
-    interceptorsPerBase: <int>[],
-    currentWave: 1,
-    isWaveActive: true,
-    isGameOver: false,
-  );
+  static GameSession initial() {
+    return const GameSession(
+      gameState: GameState.initializing,
+      score: 0,
+      missilesAlive: 0,
+      remainingBases: 0,
+      remainingInterceptors: 0,
+      interceptorsPerBase: <int>[],
+      currentWave: 1,
+      isWaveActive: true,
+      isGameOver: false,
+      playerCredits: 0,
+    );
+  }
 }
 
 class GameManager extends StateNotifier<GameSession> {
@@ -100,7 +108,7 @@ class GameManager extends StateNotifier<GameSession> {
         _maxConcurrentThreats = maxConcurrentThreats,
         _currentEnemySpeed = waveManager.initialEnemySpeed,
         _currentInterceptorSpeed = waveManager.initialInterceptorSpeed,
-        super(GameSession.initial);
+        super(GameSession.initial());
 
   final BaseSystem _baseSystem;
   final MissileSystem _missileSystem;
@@ -119,9 +127,19 @@ class GameManager extends StateNotifier<GameSession> {
   int _baseHitCounter = 0;
   int _explosionImpactCounter = 0;
   bool _debugWavePrimed = false;
+  int _score = 0;
+  bool _isGameOverInternal = false;
+  int _currentWaveInternal = 1;
+  bool _isWaveActiveInternal = true;
+  int _missilesAliveInternal = 0;
+  int _remainingBasesInternal = 0;
+  int _remainingInterceptorsInternal = 0;
+  List<int> _interceptorsPerBaseInternal = <int>[];
+  GameSession? _pendingSessionState;
+  bool _isDeferredSessionCommitScheduled = false;
 
   GameState get lifecycleState => state.gameState;
-  bool get isGameOver => state.isGameOver;
+  bool get isGameOver => _isGameOverInternal;
   List<Missile> get visibleMissiles => _missileSystem.getMissiles();
   List<InterceptorMissile> get visibleInterceptors =>
       List<InterceptorMissile>.unmodifiable(_activeInterceptors);
@@ -131,6 +149,14 @@ class GameManager extends StateNotifier<GameSession> {
   int get baseHitCounter => _baseHitCounter;
   int get explosionImpactCounter => _explosionImpactCounter;
   static const int continueCostCredits = 100;
+
+  void syncPlayerCredits(int credits) {
+    final int safeCredits = credits < 0 ? 0 : credits;
+    if (safeCredits == state.playerCredits) {
+      return;
+    }
+    state = state.copyWith(playerCredits: safeCredits);
+  }
 
   void configureWorldBounds({
     required double width,
@@ -182,17 +208,26 @@ class GameManager extends StateNotifier<GameSession> {
     _elapsedTime = 0;
     _baseHitCounter = 0;
     _explosionImpactCounter = 0;
+    _score = 0;
+    _isGameOverInternal = false;
+    _currentWaveInternal = _waveManager.currentWave;
+    _isWaveActiveInternal = _waveManager.isWaveActive;
     _activeInterceptors = <InterceptorMissile>[];
+    _remainingBasesInternal = _baseSystem.getAliveBases().length;
+    _remainingInterceptorsInternal = _totalRemainingInterceptors();
+    _interceptorsPerBaseInternal = _interceptorsPerBase();
+    _missilesAliveInternal = 0;
     state = state.copyWith(
       gameState: GameState.ready,
-      score: 0,
-      missilesAlive: 0,
-      remainingBases: _baseSystem.getAliveBases().length,
-      remainingInterceptors: _totalRemainingInterceptors(),
-      interceptorsPerBase: _interceptorsPerBase(),
-      currentWave: _waveManager.currentWave,
-      isWaveActive: _waveManager.isWaveActive,
-      isGameOver: false,
+      score: _score,
+      missilesAlive: _missilesAliveInternal,
+      remainingBases: _remainingBasesInternal,
+      remainingInterceptors: _remainingInterceptorsInternal,
+      interceptorsPerBase: _interceptorsPerBaseInternal,
+      currentWave: _currentWaveInternal,
+      isWaveActive: _isWaveActiveInternal,
+      isGameOver: _isGameOverInternal,
+      playerCredits: state.playerCredits,
     );
     if (_worldWidth > 0 && _worldHeight > 0) {
       _baseSystem.initializeBases(
@@ -204,7 +239,8 @@ class GameManager extends StateNotifier<GameSession> {
 
   void start() {
     if (state.gameState == GameState.ready ||
-        state.gameState == GameState.paused) {
+        state.gameState == GameState.paused ||
+        state.gameState == GameState.gameOver) {
       state = state.copyWith(gameState: GameState.running, isGameOver: false);
     }
   }
@@ -221,25 +257,55 @@ class GameManager extends StateNotifier<GameSession> {
     }
   }
 
-  void end() {
-    state = state.copyWith(gameState: GameState.gameOver, isGameOver: true);
+  void end({bool deferStateSync = false}) {
+    _isGameOverInternal = true;
+    _currentWaveInternal = _waveManager.currentWave;
+    _isWaveActiveInternal = _waveManager.isWaveActive;
+    _remainingBasesInternal = _baseSystem.getAliveBases().length;
+    _remainingInterceptorsInternal = _totalRemainingInterceptors();
+    _interceptorsPerBaseInternal = _interceptorsPerBase();
+    _missilesAliveInternal = _missileSystem.getMissiles().length;
+    _setSessionState(
+      state.copyWith(
+        gameState: GameState.gameOver,
+        score: _score,
+        missilesAlive: _missilesAliveInternal,
+        remainingBases: _remainingBasesInternal,
+        remainingInterceptors: _remainingInterceptorsInternal,
+        interceptorsPerBase: _interceptorsPerBaseInternal,
+        currentWave: _currentWaveInternal,
+        isWaveActive: _isWaveActiveInternal,
+        isGameOver: true,
+      ),
+      deferToNextFrame: deferStateSync,
+    );
   }
 
   void continueGame() {
-    if (!_canContinue()) {
+    if (!_canContinue() || state.playerCredits < continueCostCredits) {
       return;
     }
-    _baseSystem.restoreBasesForContinue(healthRatio: 0.5);
-    _activeInterceptors.clear();
-    _missileSystem.reset();
-    _interceptorSystem.reset();
-    _explosionSystem.reset();
+    final int updatedCredits = state.playerCredits - continueCostCredits;
+    _baseSystem.restorePartial();
+    _baseSystem.restoreAmmo();
+    _activeInterceptors = <InterceptorMissile>[];
+    _missileSystem.clear();
+    _interceptorSystem.clear();
+    _explosionSystem.clear();
+    _isGameOverInternal = false;
+    _missilesAliveInternal = 0;
+    _remainingBasesInternal = _baseSystem.getAliveBases().length;
+    _remainingInterceptorsInternal = _totalRemainingInterceptors();
+    _interceptorsPerBaseInternal = _interceptorsPerBase();
     state = state.copyWith(
+      gameState: GameState.ready,
       isGameOver: false,
-      missilesAlive: 0,
-      remainingBases: _baseSystem.getAliveBases().length,
-      remainingInterceptors: _totalRemainingInterceptors(),
-      interceptorsPerBase: _interceptorsPerBase(),
+      missilesAlive: _missilesAliveInternal,
+      remainingBases: _remainingBasesInternal,
+      remainingInterceptors: _remainingInterceptorsInternal,
+      interceptorsPerBase: _interceptorsPerBaseInternal,
+      score: _score,
+      playerCredits: updatedCredits,
     );
     start();
   }
@@ -249,30 +315,39 @@ class GameManager extends StateNotifier<GameSession> {
   }
 
   void restartGame() {
-    // Reset only internal systems/state; keep same GameManager/GameWidget instance.
     _waveManager.reset();
-    _missileSystem.reset();
-    _explosionSystem.reset();
-    _interceptorSystem.reset();
+    _missileSystem.clear();
+    _explosionSystem.clear();
+    _interceptorSystem.clear();
     _baseSystem.reset();
-    _activeInterceptors.clear();
+    _activeInterceptors = <InterceptorMissile>[];
     _elapsedTime = 0;
     _baseHitCounter = 0;
     _explosionImpactCounter = 0;
-    state = GameSession.initial;
+    _score = 0;
+    _isGameOverInternal = false;
+    final int credits = state.playerCredits;
+    state = GameSession.initial().copyWith(playerCredits: credits);
     init();
     start();
   }
 
   void update(double dtSeconds) {
-    if (state.gameState != GameState.running || state.isGameOver) {
+    if (_isGameOverInternal) {
+      return;
+    }
+    if (state.gameState != GameState.running) {
       return;
     }
     _elapsedTime += dtSeconds;
     _baseSystem.updateAmmo(dtSeconds);
     final List<Base> aliveBasesAtStart = _baseSystem.getAliveBases();
     if (aliveBasesAtStart.isEmpty) {
-      end();
+      end(deferStateSync: true);
+      return;
+    }
+    if (!_missileSystem.ensureValidTargets(aliveBasesAtStart)) {
+      end(deferStateSync: true);
       return;
     }
 
@@ -340,21 +415,74 @@ class GameManager extends StateNotifier<GameSession> {
         _missileSystem.removeMissile(missileId);
       }
       _waveManager.onMissilesDestroyed(collidedMissileIds.length);
-      state = state.copyWith(score: state.score + collidedMissileIds.length);
+      _score += collidedMissileIds.length;
     }
 
-    final int missilesAlive = _missileSystem.getMissiles().length;
-    final bool isGameOver = _baseSystem.getAliveBases().isEmpty;
-    state = state.copyWith(
-      missilesAlive: missilesAlive,
-      remainingBases: _baseSystem.getAliveBases().length,
-      remainingInterceptors: _totalRemainingInterceptors(),
-      interceptorsPerBase: _interceptorsPerBase(),
-      currentWave: tick.currentWave,
-      isWaveActive: tick.isWaveActive,
-      isGameOver: isGameOver,
-      gameState: isGameOver ? GameState.gameOver : state.gameState,
-    );
+    _missilesAliveInternal = _missileSystem.getMissiles().length;
+    _remainingBasesInternal = _baseSystem.getAliveBases().length;
+    _remainingInterceptorsInternal = _totalRemainingInterceptors();
+    _interceptorsPerBaseInternal = _interceptorsPerBase();
+
+    final bool waveChanged = tick.currentWave != _currentWaveInternal ||
+        tick.isWaveActive != _isWaveActiveInternal;
+    _currentWaveInternal = tick.currentWave;
+    _isWaveActiveInternal = tick.isWaveActive;
+
+    final bool isGameOver = _remainingBasesInternal == 0;
+    if (isGameOver) {
+      end(deferStateSync: true);
+      return;
+    }
+
+    if (waveChanged) {
+      _setSessionState(
+        state.copyWith(
+          score: _score,
+          missilesAlive: _missilesAliveInternal,
+          remainingBases: _remainingBasesInternal,
+          remainingInterceptors: _remainingInterceptorsInternal,
+          interceptorsPerBase: _interceptorsPerBaseInternal,
+          currentWave: _currentWaveInternal,
+          isWaveActive: _isWaveActiveInternal,
+        ),
+        deferToNextFrame: true,
+      );
+    }
+  }
+
+  void _setSessionState(
+    GameSession nextState, {
+    bool deferToNextFrame = false,
+  }) {
+    if (!deferToNextFrame) {
+      state = nextState;
+      return;
+    }
+    _pendingSessionState = nextState;
+    if (_isDeferredSessionCommitScheduled) {
+      return;
+    }
+    _isDeferredSessionCommitScheduled = true;
+    try {
+      SchedulerBinding.instance.addPostFrameCallback((Duration _) {
+        _flushDeferredSessionCommit();
+      });
+    } catch (_) {
+      Future<void>.microtask(_flushDeferredSessionCommit);
+    }
+  }
+
+  void _flushDeferredSessionCommit() {
+    _isDeferredSessionCommitScheduled = false;
+    if (!mounted) {
+      _pendingSessionState = null;
+      return;
+    }
+    final GameSession? pending = _pendingSessionState;
+    _pendingSessionState = null;
+    if (pending != null) {
+      state = pending;
+    }
   }
 
   void _spawnEnemyMissile(double speed) {
@@ -368,6 +496,7 @@ class GameManager extends StateNotifier<GameSession> {
     _missileSystem.spawnMissile(
       startX: spawnX,
       startY: 0,
+      targetBaseId: targetBase.id,
       targetX: targetBase.x,
       targetY: targetBase.y,
       speed: speed,
@@ -391,6 +520,6 @@ class GameManager extends StateNotifier<GameSession> {
   }
 
   bool _canContinue() {
-    return state.isGameOver;
+    return _isGameOverInternal;
   }
 }
