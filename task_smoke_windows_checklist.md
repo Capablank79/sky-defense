@@ -1,0 +1,6 @@
+- [x] Modificar flujo de inicio para forzar nueva partida al entrar a `GameScreen`.
+- [x] Ajustar límites del mundo con `hudTopInset` para evitar overlap del boss con HUD.
+- [x] Ejecutar `GetDiagnostics` en archivos editados.
+- [x] Ejecutar `flutter analyze`.
+- [x] Ejecutar `flutter test`.
+- [x] Ejecutar `flutter run -d windows` y validar que la app inicia.

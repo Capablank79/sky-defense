@@ -1,0 +1,6 @@
+- [x] Ajustar overlay de boss para mostrar alerta transitoria con fade + parpadeo x3 al entrar a fase boss.
+- [x] Corregir continue en game over de boss para re-spawn del boss si la fase boss sigue activa.
+- [x] Ejecutar `GetDiagnostics` y corregir errores si aparecen.
+- [x] Ejecutar `flutter analyze`.
+- [x] Ejecutar `flutter test`.
+- [x] Ejecutar `flutter run -d windows`.

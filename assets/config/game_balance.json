@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "baseSpawnIntervalSeconds": 1.25,
   "endSpawnIntervalSeconds": 0.85,
   "maxConcurrentThreats": 8,
@@ -7,5 +7,37 @@
   "speedStepEveryWaves": 2.0,
   "speedStepFactor": 0.10,
   "baseExplosionRadius": 24.0,
-  "collisionTolerance": 8.0
+  "collisionTolerance": 8.0,
+  "bossConfig": {
+    "phaseBossWaveNumber": 5,
+    "hpBase": 18,
+    "moveSpeedX": 82.0,
+    "baseFireCooldownSeconds": 2.20,
+    "attackPatterns": {
+      "targetedBurst": {
+        "enabled": true,
+        "cooldownSeconds": 3.40,
+        "windupSeconds": 0.45,
+        "shots": 3,
+        "shotSpacingSeconds": 0.18,
+        "speedMultiplier": 0.95
+      },
+      "fanSweep": {
+        "enabled": true,
+        "cooldownSeconds": 5.20,
+        "windupSeconds": 0.60,
+        "shots": 5,
+        "shotSpacingSeconds": 0.12,
+        "speedMultiplier": 0.88
+      }
+    },
+    "supportWave": {
+      "enabled": true,
+      "spawnIntervalSeconds": 1.55,
+      "maxConcurrentThreatsDuringBoss": 6
+    },
+    "rewards": {
+      "bossKillScore": 120
+    }
+  }
 }

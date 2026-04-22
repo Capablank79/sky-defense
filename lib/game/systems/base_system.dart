@@ -113,31 +113,67 @@ class BaseSystem {
     }
   }
 
-  void damageBaseAtTarget({
+  bool damageBaseAtTarget({
+    String? targetBaseId,
     required double targetX,
     required double targetY,
     int damage = 1,
+    double hitRadius = 24,
   }) {
     if (damage <= 0) {
-      return;
+      return false;
     }
 
     int index = -1;
-    for (int i = 0; i < _bases.length; i += 1) {
-      final Base base = _bases[i];
-      if (base.isDestroyed) {
-        continue;
-      }
-      final bool matchesTarget =
-          (base.x - targetX).abs() < 0.01 && (base.y - targetY).abs() < 0.01;
-      if (matchesTarget) {
-        index = i;
-        break;
+    if (targetBaseId != null && targetBaseId.isNotEmpty) {
+      for (int i = 0; i < _bases.length; i += 1) {
+        final Base base = _bases[i];
+        if (base.id == targetBaseId && !base.isDestroyed) {
+          index = i;
+          break;
+        }
       }
     }
 
     if (index < 0) {
-      return;
+      final double hitRadiusSquared = hitRadius * hitRadius;
+      double nearestDistanceSquared = double.infinity;
+      for (int i = 0; i < _bases.length; i += 1) {
+        final Base base = _bases[i];
+        if (base.isDestroyed) {
+          continue;
+        }
+        final double dx = base.x - targetX;
+        final double dy = base.y - targetY;
+        final double distanceSquared = (dx * dx) + (dy * dy);
+        if (distanceSquared <= hitRadiusSquared &&
+            distanceSquared < nearestDistanceSquared) {
+          nearestDistanceSquared = distanceSquared;
+          index = i;
+        }
+      }
+    }
+
+    // Fallback determinista: si no hay match por id ni por radio, daña la base viva mas cercana.
+    if (index < 0) {
+      double nearestDistanceSquared = double.infinity;
+      for (int i = 0; i < _bases.length; i += 1) {
+        final Base base = _bases[i];
+        if (base.isDestroyed) {
+          continue;
+        }
+        final double dx = base.x - targetX;
+        final double dy = base.y - targetY;
+        final double distanceSquared = (dx * dx) + (dy * dy);
+        if (distanceSquared < nearestDistanceSquared) {
+          nearestDistanceSquared = distanceSquared;
+          index = i;
+        }
+      }
+    }
+
+    if (index < 0) {
+      return false;
     }
 
     final Base current = _bases[index];
@@ -147,6 +183,7 @@ class BaseSystem {
       health: nextHealth,
       isDestroyed: nextHealth <= 0,
     );
+    return true;
   }
 
   void restoreBasesForContinue({double healthRatio = 0.5}) {

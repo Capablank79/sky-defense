@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:sky_defense/game/engine/wave_manager.dart';
 
 WaveTick _step(
@@ -31,7 +33,7 @@ WaveTick _advanceUntil(
 }
 
 void _printWaveSnapshot(WaveTick tick) {
-  print(
+  stdout.writeln(
     'Wave ${tick.phaseNumber}-${tick.waveNumber} | '
     'enemySpeed=${tick.enemyMissileSpeed.toStringAsFixed(3)} | '
     'interceptorSpeed=${tick.interceptorMissileSpeed.toStringAsFixed(3)} | '
@@ -50,7 +52,7 @@ void main() {
     speedStepRatio: 0.10,
   )..reset();
 
-  print('--- Wave Speed Probe (Phase 1) ---');
+  stdout.writeln('--- Wave Speed Probe (Phase 1) ---');
 
   final WaveTick wave11 = _step(manager, dt: 0.01);
   _printWaveSnapshot(wave11);
@@ -71,5 +73,5 @@ void main() {
   _printWaveSnapshot(wave14);
 
   final double ratio = wave14.enemyMissileSpeed / wave11.enemyMissileSpeed;
-  print('Speed ratio 1-4 / 1-1 = ${ratio.toStringAsFixed(3)}x');
+  stdout.writeln('Speed ratio 1-4 / 1-1 = ${ratio.toStringAsFixed(3)}x');
 }

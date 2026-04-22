@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sky_defense/core/config/game_balance_config.dart';
 import 'package:sky_defense/game/entities/explosion.dart';
 import 'package:sky_defense/game/entities/base.dart';
 import 'package:sky_defense/game/entities/boss.dart';
@@ -46,6 +47,7 @@ class GameSession {
     required this.waveNumber,
     required this.bossWave,
     required this.interWaveTimerSeconds,
+    required this.phaseOneDemoCompleted,
   });
 
   final GameState gameState;
@@ -65,6 +67,7 @@ class GameSession {
   final int waveNumber;
   final bool bossWave;
   final double interWaveTimerSeconds;
+  final bool phaseOneDemoCompleted;
 
   GameSession copyWith({
     GameState? gameState,
@@ -84,6 +87,7 @@ class GameSession {
     int? waveNumber,
     bool? bossWave,
     double? interWaveTimerSeconds,
+    bool? phaseOneDemoCompleted,
   }) {
     return GameSession(
       gameState: gameState ?? this.gameState,
@@ -106,6 +110,8 @@ class GameSession {
       bossWave: bossWave ?? this.bossWave,
       interWaveTimerSeconds:
           interWaveTimerSeconds ?? this.interWaveTimerSeconds,
+      phaseOneDemoCompleted:
+          phaseOneDemoCompleted ?? this.phaseOneDemoCompleted,
     );
   }
 
@@ -128,6 +134,7 @@ class GameSession {
       waveNumber: 1,
       bossWave: false,
       interWaveTimerSeconds: 0,
+      phaseOneDemoCompleted: false,
     );
   }
 }
@@ -142,6 +149,7 @@ class GameManager extends StateNotifier<GameSession> {
     required CollisionSystem collisionSystem,
     required WaveManager waveManager,
     required int maxConcurrentThreats,
+    required BossConfig bossConfig,
   })  : _baseSystem = baseSystem,
         _citySystem = citySystem,
         _missileSystem = missileSystem,
@@ -150,6 +158,7 @@ class GameManager extends StateNotifier<GameSession> {
         _collisionSystem = collisionSystem,
         _waveManager = waveManager,
         _maxConcurrentThreats = maxConcurrentThreats,
+        _bossConfig = bossConfig,
         _currentInterceptorSpeed = waveManager.initialInterceptorSpeed,
         super(GameSession.initial());
 
@@ -161,6 +170,7 @@ class GameManager extends StateNotifier<GameSession> {
   final CollisionSystem _collisionSystem;
   final WaveManager _waveManager;
   final int _maxConcurrentThreats;
+  final BossConfig _bossConfig;
   double _currentInterceptorSpeed;
   List<InterceptorMissile> _activeInterceptors = <InterceptorMissile>[];
   Boss? _boss;
@@ -176,6 +186,7 @@ class GameManager extends StateNotifier<GameSession> {
   double minY = 0;
   double maxY = 0;
   double hudLeftWidth = 100;
+  double _hudTopInset = 0;
   static const double sidePadding = 8;
   static const double bottomPadding = 40;
   double _elapsedTime = 0;
@@ -197,6 +208,7 @@ class GameManager extends StateNotifier<GameSession> {
   int _shotsHit = 0;
   int _initialBaseCount = 4;
   bool _isGameOverInternal = false;
+  bool _phaseOneDemoCompletedInternal = false;
   int _currentWaveInternal = 1;
   int _phaseNumberInternal = 1;
   int _waveNumberInternal = 1;
@@ -228,7 +240,10 @@ class GameManager extends StateNotifier<GameSession> {
   int get phaseNumber => _phaseNumberInternal;
   int get waveNumber => _waveNumberInternal;
   bool get bossWave => _bossWaveInternal;
+  bool get phaseOneDemoCompleted => _phaseOneDemoCompletedInternal;
   int get score => _score;
+  int get globalWave => _currentWaveInternal;
+  int get waveInPhase => _waveNumberInternal;
   int get wave => _currentWaveInternal;
   int get phase => _phaseNumberInternal;
   int get credits => state.playerCredits;
@@ -237,7 +252,7 @@ class GameManager extends StateNotifier<GameSession> {
   List<int> get ammoPerBase => List<int>.unmodifiable(
         _baseSystem.getBases().map((Base base) => base.ammoCurrent.floor()),
       );
-  String get phaseWaveLabel => 'Fase $phase - Oleada $wave';
+  String get phaseWaveLabel => 'Fase $phase - Oleada $waveInPhase';
   int get restartVersion => _restartVersion;
   int get waveRewardCounter => _waveRewardCounter;
   int get lastWaveRewardCredits => _lastWaveRewardCredits;
@@ -318,6 +333,21 @@ class GameManager extends StateNotifier<GameSession> {
     );
   }
 
+  void setHudTopInset(double inset) {
+    final double safeInset = inset < 0 ? 0 : inset;
+    if ((_hudTopInset - safeInset).abs() < 1) {
+      return;
+    }
+    _hudTopInset = safeInset;
+    if (_worldWidth <= 0 || _worldHeight <= 0) {
+      return;
+    }
+    configureWorldBounds(
+      width: _worldWidth,
+      height: _worldHeight,
+    );
+  }
+
   void configureWorldBounds({
     required double width,
     required double height,
@@ -329,8 +359,14 @@ class GameManager extends StateNotifier<GameSession> {
     _worldHeight = height;
     minX = hudLeftWidth + sidePadding;
     maxX = width - sidePadding;
-    minY = 0;
+    minY = (_hudTopInset + sidePadding).clamp(0, height - bottomPadding - 80);
     maxY = height - bottomPadding;
+    _missileSystem.configureBounds(
+      minX: minX,
+      maxX: maxX,
+      minY: minY,
+      maxY: maxY,
+    );
     _positionBases();
     _generateBaseOrder(_baseSystem.getAliveBases().length);
   }
@@ -431,6 +467,7 @@ class GameManager extends StateNotifier<GameSession> {
     _hudSyncAccumulator = 0;
     _score = 0;
     _isGameOverInternal = false;
+    _phaseOneDemoCompletedInternal = false;
     _currentWaveInternal = _waveManager.currentWave;
     _phaseNumberInternal = _waveManager.phaseNumber;
     _waveNumberInternal = _waveManager.waveNumber;
@@ -468,6 +505,7 @@ class GameManager extends StateNotifier<GameSession> {
       waveNumber: _waveNumberInternal,
       bossWave: _bossWaveInternal,
       interWaveTimerSeconds: _interWaveTimerInternal,
+      phaseOneDemoCompleted: _phaseOneDemoCompletedInternal,
     );
     if (_worldWidth > 0 && _worldHeight > 0) {
       _positionBases();
@@ -521,6 +559,7 @@ class GameManager extends StateNotifier<GameSession> {
         interWaveTimerSeconds: _interWaveTimerInternal,
         isWaveActive: _isWaveActiveInternal,
         isGameOver: true,
+        phaseOneDemoCompleted: _phaseOneDemoCompletedInternal,
       ),
       deferToNextFrame: deferStateSync,
     );
@@ -556,6 +595,7 @@ class GameManager extends StateNotifier<GameSession> {
       creditsEarned: _sessionCreditsEarned,
       waveRewardCounter: _waveRewardCounter,
       lastWaveRewardCredits: _lastWaveRewardCredits,
+      phaseOneDemoCompleted: false,
     );
     start();
   }
@@ -587,6 +627,7 @@ class GameManager extends StateNotifier<GameSession> {
     _shotsFired = 0;
     _shotsHit = 0;
     _isGameOverInternal = false;
+    _phaseOneDemoCompletedInternal = false;
     _baseOrder = <int>[];
     _currentOrderIndex = 0;
     _restartVersion += 1;
@@ -606,8 +647,12 @@ class GameManager extends StateNotifier<GameSession> {
     _elapsedTime += dtSeconds;
     _baseSystem.updateAmmo(dtSeconds);
     final List<Base> aliveBasesAtStart = _baseSystem.getAliveBases();
-    if (aliveBasesAtStart.isNotEmpty &&
-        !_missileSystem.ensureValidTargets(aliveBasesAtStart)) {
+    final List<City> aliveCitiesAtStart = _citySystem.getAliveCities();
+    if ((aliveBasesAtStart.isNotEmpty || aliveCitiesAtStart.isNotEmpty) &&
+        !_missileSystem.ensureValidTargets(
+          aliveBases: aliveBasesAtStart,
+          aliveCities: aliveCitiesAtStart,
+        )) {
       end(deferStateSync: true);
       return;
     }
@@ -640,10 +685,16 @@ class GameManager extends StateNotifier<GameSession> {
       _activeInterceptors = <InterceptorMissile>[];
       _baseSystem.restoreAmmo();
 
+      final int rewardPhase =
+          waveTick.completedPhaseNumber ?? waveTick.phaseNumber;
+      final int rewardWave =
+          waveTick.completedWaveNumber ?? waveTick.waveNumber;
+      final bool rewardBossWave =
+          waveTick.completedBossWave ?? waveTick.bossWave;
       _awardWaveCredits(
-        phaseNumber: waveTick.phaseNumber,
-        waveNumber: waveTick.waveNumber,
-        bossWave: waveTick.bossWave,
+        phaseNumber: rewardPhase,
+        waveNumber: rewardWave,
+        bossWave: rewardBossWave,
       );
 
       // 🔥 DO NOT remove boss if we are entering boss phase
@@ -656,14 +707,13 @@ class GameManager extends StateNotifier<GameSession> {
       _baseSystem.restoreAmmo();
       _generateBaseOrder(_baseSystem.getAliveBases().length);
 
-      // 🔥 ALWAYS reset boss when a new wave starts
+      // Reset boss actor at wave start.
       _boss = null;
       _bossDamagedByExplosionIds.clear();
-
-      // 🔥 Spawn boss ONLY when WaveManager indicates boss phase
-      if (waveTick.bossWave && _boss == null) {
-        _spawnBoss(waveTick);
-      }
+    }
+    // Ensure boss exists whenever we are inside boss phase.
+    if (waveTick.bossWave && _boss == null) {
+      _spawnBoss(waveTick);
     }
 
     _updateBoss(dtSeconds, waveTick);
@@ -674,18 +724,25 @@ class GameManager extends StateNotifier<GameSession> {
     bool baseDamaged = false;
     for (final Missile missile in arrivedMissiles) {
       if (missile.targetKind == MissileTargetKind.city) {
-        _citySystem.destroyCityAtTarget(
+        final bool cityDestroyed = _citySystem.destroyCityAtTarget(
+          targetCityId: missile.targetBaseId,
           targetX: missile.target.x,
           targetY: missile.target.y,
         );
+        if (cityDestroyed) {
+          baseDamaged = true;
+        }
       } else {
-        _baseSystem.damageBaseAtTarget(
+        final bool impactedBase = _baseSystem.damageBaseAtTarget(
+          targetBaseId: missile.targetBaseId,
           targetX: missile.target.x,
           targetY: missile.target.y,
           damage: missile.type == MissileType.boss ? 2 : 1,
         );
+        if (impactedBase) {
+          baseDamaged = true;
+        }
       }
-      baseDamaged = true;
     }
 
     _interceptorSystem.update(dtSeconds);
@@ -774,6 +831,7 @@ class GameManager extends StateNotifier<GameSession> {
           creditsEarned: _sessionCreditsEarned,
           waveRewardCounter: _waveRewardCounter,
           lastWaveRewardCredits: _lastWaveRewardCredits,
+          phaseOneDemoCompleted: _phaseOneDemoCompletedInternal,
         ),
         deferToNextFrame: true,
       );
@@ -905,7 +963,7 @@ class GameManager extends StateNotifier<GameSession> {
   }
 
   bool _canContinue() {
-    return _isGameOverInternal;
+    return _isGameOverInternal && !_phaseOneDemoCompletedInternal;
   }
 
   void configurePlayerUpgrades(PlayerUpgrades upgrades) {
@@ -928,8 +986,11 @@ class GameManager extends StateNotifier<GameSession> {
     if (waveKey <= _lastRewardedWave) {
       return;
     }
-    final int rewardWave = bossWave ? 5 : waveNumber;
-    final int reward = _waveRewardBase + (rewardWave * _waveRewardMultiplier);
+    final int rewardWave =
+        bossWave ? _bossConfig.phaseBossWaveNumber : waveNumber;
+    final int reward = bossWave
+        ? _bossConfig.bossKillScore
+        : (_waveRewardBase + (rewardWave * _waveRewardMultiplier));
     _lastRewardedWave = waveKey;
     _lastWaveRewardCredits = reward;
     _waveRewardCounter += 1;
@@ -1011,12 +1072,16 @@ class GameManager extends StateNotifier<GameSession> {
       return;
     }
     final double centerX = (minX + maxX) * 0.5;
+    final int scaledHp = _bossConfig.hpBase + ((tick.phaseNumber - 1) * 2);
+    final int bossHp = max(scaledHp, tick.bossHitPoints);
+    final double baseCooldown =
+        min(_bossConfig.baseFireCooldownSeconds, tick.bossFireCooldown);
     _boss = Boss(
       position: Vector2(centerX, minY + 56),
-      health: tick.bossHitPoints,
-      maxHealth: tick.bossHitPoints,
-      velocityX: 70,
-      fireCooldownSeconds: tick.bossFireCooldown,
+      health: bossHp,
+      maxHealth: bossHp,
+      velocityX: _bossConfig.moveSpeedX,
+      fireCooldownSeconds: baseCooldown,
     );
     _bossDamagedByExplosionIds.clear();
   }
@@ -1037,11 +1102,128 @@ class GameManager extends StateNotifier<GameSession> {
       boss.velocityX = -boss.velocityX.abs();
     }
 
-    boss.fireTimerSeconds += dtSeconds;
-    if (boss.fireTimerSeconds >= boss.fireCooldownSeconds) {
-      boss.fireTimerSeconds = 0;
-      // Boss phase is isolated from enemy wave spawning.
+    if (!tick.bossWave) {
+      return;
     }
+
+    _updateBossCombatState(boss: boss, dtSeconds: dtSeconds, tick: tick);
+  }
+
+  void _updateBossCombatState({
+    required Boss boss,
+    required double dtSeconds,
+    required WaveTick tick,
+  }) {
+    boss.stateTimerSeconds += dtSeconds;
+    boss.targetedBurstTimerSeconds += dtSeconds;
+    boss.fanSweepTimerSeconds += dtSeconds;
+    boss.supportWaveTimerSeconds += dtSeconds;
+
+    if (_bossConfig.targetedBurst.enabled &&
+        boss.targetedBurstTimerSeconds >=
+            _bossConfig.targetedBurst.cooldownSeconds) {
+      boss.targetedBurstTimerSeconds = 0;
+      boss.state = BossState.attackA;
+      _fireTargetedBurst(tick: tick, boss: boss);
+    }
+
+    if (_bossConfig.fanSweep.enabled &&
+        boss.fanSweepTimerSeconds >= _bossConfig.fanSweep.cooldownSeconds) {
+      boss.fanSweepTimerSeconds = 0;
+      boss.state = BossState.attackB;
+      _fireFanSweep(tick: tick, boss: boss);
+    }
+
+    if (_bossConfig.supportWave.enabled &&
+        boss.supportWaveTimerSeconds >=
+            _bossConfig.supportWave.spawnIntervalSeconds &&
+        _missileSystem.getActiveThreatCount() <
+            _bossConfig.supportWave.maxConcurrentThreatsDuringBoss) {
+      boss.supportWaveTimerSeconds = 0;
+      _spawnMissileControlled(tick);
+    }
+  }
+
+  void _fireTargetedBurst({
+    required WaveTick tick,
+    required Boss boss,
+  }) {
+    final ({String id, double x, double y, MissileTargetKind kind})? target =
+        _pickCenterPriorityTarget();
+    if (target == null) {
+      return;
+    }
+    final double speed = _speedForType(
+      baseSpeed:
+          tick.enemyMissileSpeed * _bossConfig.targetedBurst.speedMultiplier,
+      type: MissileType.boss,
+    );
+    final int shots = _bossConfig.targetedBurst.shots;
+    for (int i = 0; i < shots; i += 1) {
+      final double offsetX = (i - ((shots - 1) / 2)) * 10;
+      _spawnBossMissile(
+        startX: boss.position.x + offsetX,
+        startY: boss.position.y,
+        target: target,
+        speed: speed,
+        type: MissileType.boss,
+        hitPoints: 2,
+      );
+    }
+  }
+
+  void _fireFanSweep({
+    required WaveTick tick,
+    required Boss boss,
+  }) {
+    final ({String id, double x, double y, MissileTargetKind kind})? target =
+        _pickEnemyTarget();
+    if (target == null) {
+      return;
+    }
+    final int shots = _bossConfig.fanSweep.shots;
+    final double speed = _speedForType(
+      baseSpeed: tick.enemyMissileSpeed * _bossConfig.fanSweep.speedMultiplier,
+      type: MissileType.heavy,
+    );
+    for (int i = 0; i < shots; i += 1) {
+      final double factor = shots <= 1 ? 0 : ((i / (shots - 1)) * 2) - 1;
+      final double offsetX = factor * 48;
+      _spawnBossMissile(
+        startX: boss.position.x,
+        startY: boss.position.y,
+        target: (
+          id: target.id,
+          x: (target.x + offsetX).clamp(minX, maxX),
+          y: target.y,
+          kind: target.kind,
+        ),
+        speed: speed,
+        type: MissileType.heavy,
+        hitPoints: 3,
+      );
+    }
+  }
+
+  void _spawnBossMissile({
+    required double startX,
+    required double startY,
+    required ({String id, double x, double y, MissileTargetKind kind}) target,
+    required double speed,
+    required MissileType type,
+    required int hitPoints,
+  }) {
+    _missileSystem.spawnMissile(
+      startX: startX.clamp(minX, maxX),
+      startY: startY.clamp(minY, maxY),
+      targetBaseId: target.id,
+      targetKind: target.kind,
+      targetX: target.x.clamp(minX, maxX),
+      targetY: target.y.clamp(minY, maxY),
+      speed: speed,
+      type: type,
+      hitPoints: hitPoints,
+    );
   }
 
   void _updateBossDamageFromExplosions(List<Explosion> explosions) {
@@ -1063,10 +1245,44 @@ class GameManager extends StateNotifier<GameSession> {
         _bossDamagedByExplosionIds.add(explosion.id);
         boss.health -= 1;
         if (boss.health <= 0) {
-          _score += 25;
+          _score += _bossConfig.bossKillScore;
           _boss = null;
-          _waveManager.onBossDefeated();
           _bossDamagedByExplosionIds.clear();
+          if (_waveManager.phaseNumber == 1 && _waveManager.bossWave) {
+            _phaseOneDemoCompletedInternal = true;
+            _isGameOverInternal = true;
+            _currentWaveInternal = _waveManager.currentWave;
+            _phaseNumberInternal = _waveManager.phaseNumber;
+            _waveNumberInternal = _waveManager.waveNumber;
+            _bossWaveInternal = _waveManager.bossWave;
+            _isWaveActiveInternal = false;
+            _interWaveTimerInternal = 0;
+            _remainingBasesInternal = _baseSystem.getAliveBases().length;
+            _remainingInterceptorsInternal = _totalRemainingInterceptors();
+            _interceptorsPerBaseInternal = _interceptorsPerBase();
+            _missilesAliveInternal = _missileSystem.getMissiles().length;
+            _setSessionState(
+              state.copyWith(
+                gameState: GameState.gameOver,
+                score: _score,
+                missilesAlive: _missilesAliveInternal,
+                remainingBases: _remainingBasesInternal,
+                remainingInterceptors: _remainingInterceptorsInternal,
+                interceptorsPerBase: _interceptorsPerBaseInternal,
+                currentWave: _currentWaveInternal,
+                phaseNumber: _phaseNumberInternal,
+                waveNumber: _waveNumberInternal,
+                bossWave: _bossWaveInternal,
+                interWaveTimerSeconds: _interWaveTimerInternal,
+                isWaveActive: _isWaveActiveInternal,
+                isGameOver: true,
+                phaseOneDemoCompleted: true,
+              ),
+              deferToNextFrame: true,
+            );
+          } else {
+            _waveManager.onBossDefeated();
+          }
           break;
         }
       }
@@ -1092,6 +1308,41 @@ class GameManager extends StateNotifier<GameSession> {
       );
     }
     final City city = aliveCities[pick - aliveBases.length];
+    return (
+      id: city.id,
+      x: city.x,
+      y: city.y,
+      kind: MissileTargetKind.city,
+    );
+  }
+
+  ({String id, double x, double y, MissileTargetKind kind})?
+      _pickCenterPriorityTarget() {
+    final List<Base> aliveBases = _baseSystem.getAliveBases();
+    if (aliveBases.isNotEmpty) {
+      final double centerX = (minX + maxX) * 0.5;
+      Base selected = aliveBases.first;
+      double bestDx = (selected.x - centerX).abs();
+      for (int i = 1; i < aliveBases.length; i += 1) {
+        final Base candidate = aliveBases[i];
+        final double dx = (candidate.x - centerX).abs();
+        if (dx < bestDx) {
+          selected = candidate;
+          bestDx = dx;
+        }
+      }
+      return (
+        id: selected.id,
+        x: selected.x,
+        y: selected.y,
+        kind: MissileTargetKind.base,
+      );
+    }
+    final List<City> aliveCities = _citySystem.getAliveCities();
+    if (aliveCities.isEmpty) {
+      return null;
+    }
+    final City city = aliveCities[_spawnRandom.nextInt(aliveCities.length)];
     return (
       id: city.id,
       x: city.x,

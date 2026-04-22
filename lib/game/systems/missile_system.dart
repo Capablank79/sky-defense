@@ -15,10 +15,10 @@ class MissileSystem {
         _maxY = maxY;
 
   List<Missile> _missiles = <Missile>[];
-  final double _minX;
-  final double _maxX;
-  final double _minY;
-  final double _maxY;
+  double _minX;
+  double _maxX;
+  double _minY;
+  double _maxY;
   int _counter = 0;
   final Set<String> _arrivedMissileIds = <String>{};
 
@@ -84,9 +84,9 @@ class MissileSystem {
       missile.update(dtSeconds);
 
       if (_isOutsideBounds(missile.linearPosition)) {
-        // Nunca eliminar un misil activo en silencio.
-        // Lo convertimos en terminal para que el ciclo se cierre de forma explicita.
-        _markMissileAsArrived(missile);
+        // Fuera del area jugable no equivale a impacto en objetivo.
+        // Se descarta el misil sin contabilizar llegada.
+        _deactivateOutOfBoundsMissile(missile);
         continue;
       }
 
@@ -109,12 +109,30 @@ class MissileSystem {
     return pos.x < _minX || pos.x > _maxX || pos.y < _minY || pos.y > _maxY;
   }
 
+  void configureBounds({
+    required double minX,
+    required double maxX,
+    required double minY,
+    required double maxY,
+  }) {
+    _minX = minX;
+    _maxX = maxX;
+    _minY = minY;
+    _maxY = maxY;
+  }
+
   void _markMissileAsArrived(Missile missile) {
     missile.linearPosition.setFrom(missile.target);
     missile.position.setFrom(missile.target);
     missile.hasArrived = true;
     missile.isActive = false;
     _arrivedMissileIds.add(missile.id);
+  }
+
+  void _deactivateOutOfBoundsMissile(Missile missile) {
+    missile.isActive = false;
+    missile.hasArrived = false;
+    _arrivedMissileIds.remove(missile.id);
   }
 
   void removeMissile(String id) {
@@ -218,9 +236,11 @@ class MissileSystem {
         }
         Base nearest = aliveBases.first;
         double nearestDistance = double.infinity;
+        final double missileX = missile.linearPosition.x;
+        final double missileY = missile.linearPosition.y;
         for (final Base base in aliveBases) {
-          final double dx = missile.x - base.x;
-          final double dy = missile.y - base.y;
+          final double dx = missileX - base.x;
+          final double dy = missileY - base.y;
           final double distance = (dx * dx) + (dy * dy);
           if (distance < nearestDistance) {
             nearestDistance = distance;
@@ -246,9 +266,11 @@ class MissileSystem {
       }
       City nearestCity = aliveCities.first;
       double nearestCityDistance = double.infinity;
+      final double missileX = missile.linearPosition.x;
+      final double missileY = missile.linearPosition.y;
       for (final City city in aliveCities) {
-        final double dx = missile.x - city.x;
-        final double dy = missile.y - city.y;
+        final double dx = missileX - city.x;
+        final double dy = missileY - city.y;
         final double distance = (dx * dx) + (dy * dy);
         if (distance < nearestCityDistance) {
           nearestCityDistance = distance;

@@ -51,21 +51,60 @@ class CitySystem {
   }
 
   bool destroyCityAtTarget({
+    String? targetCityId,
     required double targetX,
     required double targetY,
+    double hitRadius = 24,
   }) {
+    if (targetCityId != null && targetCityId.isNotEmpty) {
+      final bool byIdDestroyed = destroyCity(targetCityId);
+      if (byIdDestroyed) {
+        return true;
+      }
+    }
+
+    final double hitRadiusSquared = hitRadius * hitRadius;
+    int closestIndexInRadius = -1;
+    double nearestDistanceInRadius = double.infinity;
     for (int i = 0; i < _cities.length; i += 1) {
       final City city = _cities[i];
       if (!city.isAlive) {
         continue;
       }
-      final bool hit =
-          (city.x - targetX).abs() < 0.01 && (city.y - targetY).abs() < 0.01;
-      if (hit) {
-        return destroyCity(city.id);
+      final double dx = city.x - targetX;
+      final double dy = city.y - targetY;
+      final double distanceSquared = (dx * dx) + (dy * dy);
+      if (distanceSquared <= hitRadiusSquared &&
+          distanceSquared < nearestDistanceInRadius) {
+        nearestDistanceInRadius = distanceSquared;
+        closestIndexInRadius = i;
       }
     }
-    return false;
+
+    if (closestIndexInRadius >= 0) {
+      return destroyCity(_cities[closestIndexInRadius].id);
+    }
+
+    // Fallback determinista: destruye la ciudad viva mas cercana.
+    int closestAliveIndex = -1;
+    double nearestDistance = double.infinity;
+    for (int i = 0; i < _cities.length; i += 1) {
+      final City city = _cities[i];
+      if (!city.isAlive) {
+        continue;
+      }
+      final double dx = city.x - targetX;
+      final double dy = city.y - targetY;
+      final double distanceSquared = (dx * dx) + (dy * dy);
+      if (distanceSquared < nearestDistance) {
+        nearestDistance = distanceSquared;
+        closestAliveIndex = i;
+      }
+    }
+    if (closestAliveIndex < 0) {
+      return false;
+    }
+    return destroyCity(_cities[closestAliveIndex].id);
   }
 
   bool destroyCity(String cityId) {

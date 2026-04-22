@@ -86,6 +86,40 @@ void main() {
     expect(missile.target.y, 680);
   });
 
+  test(
+      'MissileSystem ensureValidTargets usa trayectoria lineal para retarget',
+      () {
+    final MissileSystem missileSystem = MissileSystem();
+    final Missile missile = missileSystem.spawnMissile(
+      startX: 100,
+      startY: 10,
+      targetBaseId: 'base_missing',
+      targetKind: MissileTargetKind.base,
+      targetX: 300,
+      targetY: 700,
+      speed: 80,
+      type: MissileType.zigzag,
+      zigzagAmplitude: 16,
+      zigzagFrequency: 8,
+    );
+    missile.linearPosition.setValues(110, 680);
+    missile.position.setValues(350, 680);
+
+    final bool valid = missileSystem.ensureValidTargets(
+      aliveBases: const <Base>[
+        Base(id: 'base_near_linear', x: 120, y: 680),
+        Base(id: 'base_near_visual', x: 340, y: 680),
+      ],
+      aliveCities: const <City>[],
+    );
+
+    expect(valid, isTrue);
+    expect(missile.targetKind, MissileTargetKind.base);
+    expect(missile.targetBaseId, 'base_near_linear');
+    expect(missile.target.x, 120);
+    expect(missile.target.y, 680);
+  });
+
   test('Missile zigzag completa ciclo y llega a destino', () {
     final MissileSystem missileSystem = MissileSystem();
     final Missile missile = missileSystem.spawnMissile(
@@ -115,7 +149,7 @@ void main() {
     expect(missileSystem.getActiveThreatCount(), 0);
   });
 
-  test('Missile fuera de limites no se elimina en silencio', () {
+  test('Missile fuera de limites no cuenta como llegada', () {
     final MissileSystem missileSystem = MissileSystem(
       minX: -10,
       maxX: 10,
@@ -135,7 +169,108 @@ void main() {
     missileSystem.update(0.2);
     final List<Missile> arrived = missileSystem.consumeArrivedMissiles();
 
+    expect(arrived.any((Missile m) => m.id == missile.id), isFalse);
+    expect(missileSystem.getMissiles(), isEmpty);
+    expect(missileSystem.getActiveThreatCount(), 0);
+  });
+
+  test('MissileSystem respeta bounds dinamicos en mundo ancho', () {
+    final MissileSystem missileSystem = MissileSystem();
+    missileSystem.configureBounds(
+      minX: 0,
+      maxX: 2200,
+      minY: 0,
+      maxY: 1200,
+    );
+    final Missile missile = missileSystem.spawnMissile(
+      startX: 1200,
+      startY: 120,
+      targetBaseId: 'base_1',
+      targetKind: MissileTargetKind.base,
+      targetX: 1600,
+      targetY: 120,
+      speed: 80,
+    );
+
+    missileSystem.update(0.1);
+    final List<Missile> arrived = missileSystem.consumeArrivedMissiles();
+
+    expect(arrived.any((Missile m) => m.id == missile.id), isFalse);
+    expect(missileSystem.getMissiles().any((Missile m) => m.id == missile.id), isTrue);
+    expect(missileSystem.getActiveThreatCount(), 1);
+  });
+
+  test('Missile dentro de bounds completa llegada real', () {
+    final MissileSystem missileSystem = MissileSystem(
+      minX: -10,
+      maxX: 200,
+      minY: -10,
+      maxY: 200,
+    );
+    final Missile missile = missileSystem.spawnMissile(
+      startX: 0,
+      startY: 0,
+      targetBaseId: 'base_1',
+      targetKind: MissileTargetKind.base,
+      targetX: 20,
+      targetY: 0,
+      speed: 120,
+    );
+
+    missileSystem.update(0.2);
+    final List<Missile> arrived = missileSystem.consumeArrivedMissiles();
+
     expect(arrived.any((Missile m) => m.id == missile.id), isTrue);
+    expect(missileSystem.getMissiles(), isEmpty);
+    expect(missileSystem.getActiveThreatCount(), 0);
+  });
+
+  test('Tipos de misil completan ciclo sin estado invalido', () {
+    final MissileSystem missileSystem = MissileSystem(
+      minX: -50,
+      maxX: 400,
+      minY: -50,
+      maxY: 400,
+    );
+    final List<MissileType> types = <MissileType>[
+      MissileType.slow,
+      MissileType.medium,
+      MissileType.fast,
+      MissileType.split,
+      MissileType.zigzag,
+      MissileType.heavy,
+      MissileType.boss,
+    ];
+    for (int i = 0; i < types.length; i += 1) {
+      final MissileType type = types[i];
+      missileSystem.spawnMissile(
+        startX: 0,
+        startY: i * 8,
+        targetBaseId: 'base_$i',
+        targetKind: MissileTargetKind.base,
+        targetX: 60,
+        targetY: i * 8,
+        speed: 60,
+        type: type,
+        splitRemaining: type == MissileType.split ? 1 : 0,
+        zigzagAmplitude: type == MissileType.zigzag ? 14 : 0,
+        zigzagFrequency: type == MissileType.zigzag ? 7.5 : 0,
+      );
+    }
+
+    final Set<String> arrivedIds = <String>{};
+    for (int step = 0; step < 60; step += 1) {
+      missileSystem.update(0.05);
+      final List<Missile> arrivedNow = missileSystem.consumeArrivedMissiles();
+      for (final Missile missile in arrivedNow) {
+        arrivedIds.add(missile.id);
+      }
+      if (arrivedIds.length == types.length) {
+        break;
+      }
+    }
+
+    expect(arrivedIds.length, types.length);
     expect(missileSystem.getMissiles(), isEmpty);
     expect(missileSystem.getActiveThreatCount(), 0);
   });

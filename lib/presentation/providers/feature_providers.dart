@@ -247,6 +247,26 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
     return true;
   }
 
+  Future<bool> syncCredits(int credits) async {
+    if (credits < 0) {
+      return false;
+    }
+    final PlayerProfile current = state.value ?? _defaultProfile();
+    if (current.economy.credits == credits) {
+      return true;
+    }
+    final PlayerProfile updated = current.copyWith(
+      economy: current.economy.copyWith(credits: credits),
+    );
+    final Result<void> result = await _savePlayerDataUseCase(updated);
+    if (!result.isSuccess) {
+      state = AsyncError((result as Failure<void>).message, StackTrace.current);
+      return false;
+    }
+    state = AsyncData(updated.toSanitized(rules: _sanitizationRules()));
+    return true;
+  }
+
   int upgradeCostFor(PlayerUpgrades upgrades, UpgradeType type) {
     const int baseCost = 120;
     const int costStep = 80;

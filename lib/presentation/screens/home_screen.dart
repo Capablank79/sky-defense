@@ -28,28 +28,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final WidgetRef ref = this.ref;
-    final PlayerProfile? playerData =
-        ref.watch(playerProvider.select((AsyncValue<PlayerProfile> value) => value.asData?.value));
-    final bool isLoading =
-        ref.watch(playerProvider.select((AsyncValue<PlayerProfile> value) => value.isLoading));
-    final bool hasError =
-        ref.watch(playerProvider.select((AsyncValue<PlayerProfile> value) => value.hasError));
+    final PlayerProfile? playerData = ref.watch(playerProvider
+        .select((AsyncValue<PlayerProfile> value) => value.asData?.value));
+    final bool isLoading = ref.watch(playerProvider
+        .select((AsyncValue<PlayerProfile> value) => value.isLoading));
+    final bool hasError = ref.watch(playerProvider
+        .select((AsyncValue<PlayerProfile> value) => value.hasError));
     final economyConfig = ref.watch(resolvedEconomyConfigProvider);
     final gameBalanceConfig = ref.watch(resolvedGameBalanceConfigProvider);
     final retentionConfig = ref.watch(resolvedRetentionConfigProvider);
-    final GameState gameState =
-        ref.watch(gameManagerProvider.select((GameSession session) => session.gameState));
+    final GameState gameState = ref.watch(
+        gameManagerProvider.select((GameSession session) => session.gameState));
 
     return Scaffold(
       appBar: AppBar(
-        title: const AppText(textKey: 'home_title', variant: AppTextVariant.heading),
-        actions: <Widget>[
-          IconButton(
-            onPressed: () => context.push(AppRoutes.settings),
-            icon: const Icon(Icons.settings),
-            tooltip: AppLocalizations.of(context).tr('home_open_settings'),
-          ),
-        ],
+        title: const AppText(
+            textKey: 'home_title', variant: AppTextVariant.heading),
       ),
       body: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -64,7 +58,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             AppText(
               textKey: 'home_game_state_value',
               args: <String, String>{
-                'value': AppLocalizations.of(context).tr(_gameStateKey(gameState)),
+                'value':
+                    AppLocalizations.of(context).tr(_gameStateKey(gameState)),
               },
               variant: AppTextVariant.caption,
             ),
@@ -95,8 +90,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   final bool rewardAvailable = ref
                       .read(playerProvider.notifier)
                       .isDailyRewardAvailable(data, DateTime.now());
-                  final bool isEmptyState =
-                      safeCurrency == 0 && safeLevel == 1 && data.progress.totalSessions == 0;
+                  final bool isEmptyState = safeCurrency == 0 &&
+                      safeLevel == 1 &&
+                      data.progress.totalSessions == 0;
                   return AppContainer(
                     elevationPreset: AppContainerElevation.low,
                     child: Column(
@@ -116,7 +112,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ],
                         AppText(
                           textKey: 'home_currency_value',
-                          args: <String, String>{'value': safeCurrency.toString()},
+                          args: <String, String>{
+                            'value': safeCurrency.toString()
+                          },
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         AppText(
@@ -127,7 +125,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         AppText(
                           textKey: 'home_base_reward_value',
                           args: <String, String>{
-                            'value': economyConfig.baseRewardPerSession.toString(),
+                            'value':
+                                economyConfig.baseRewardPerSession.toString(),
                           },
                           variant: AppTextVariant.caption,
                         ),
@@ -135,7 +134,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         AppText(
                           textKey: 'home_max_threats_value',
                           args: <String, String>{
-                            'value': gameBalanceConfig.maxConcurrentThreats.toString(),
+                            'value': gameBalanceConfig.maxConcurrentThreats
+                                .toString(),
                           },
                           variant: AppTextVariant.caption,
                         ),
@@ -152,14 +152,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         AppText(
                           textKey: 'home_upgrade_cost_value',
                           args: <String, String>{
-                            'value': economyConfig.upgradeCostPerLevel.toString(),
+                            'value':
+                                economyConfig.upgradeCostPerLevel.toString(),
                           },
                           variant: AppTextVariant.caption,
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         AppText(
                           textKey: 'home_streak_value',
-                          args: <String, String>{'value': safeStreak.toString()},
+                          args: <String, String>{
+                            'value': safeStreak.toString()
+                          },
                           variant: AppTextVariant.caption,
                         ),
                         const SizedBox(height: AppSpacing.xs),
@@ -206,8 +209,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   setState(() {
                                     _isClaimingReward = true;
                                   });
-                                  final int reward =
-                                      await ref.read(playerProvider.notifier).claimDailyReward();
+                                  final int reward = await ref
+                                      .read(playerProvider.notifier)
+                                      .claimDailyReward();
                                   if (mounted) {
                                     setState(() {
                                       _isClaimingReward = false;
@@ -227,12 +231,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           variant: AppButtonVariant.ghost,
                           size: AppButtonSize.small,
                           onPressed: () async {
-                            final bool ok =
-                                await ref.read(playerProvider.notifier).spendCredits(100);
+                            final bool ok = await ref
+                                .read(playerProvider.notifier)
+                                .spendCredits(100);
                             if (mounted) {
                               setState(() {
-                                _lastEconomyActionKey =
-                                    ok ? 'home_action_spend_success' : 'home_action_denied';
+                                _lastEconomyActionKey = ok
+                                    ? 'home_action_spend_success'
+                                    : 'home_action_denied';
                               });
                             }
                           },
@@ -243,12 +249,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           variant: AppButtonVariant.ghost,
                           size: AppButtonSize.small,
                           onPressed: () async {
-                            final bool ok =
-                                await ref.read(playerProvider.notifier).upgradeProgress();
+                            final bool ok = await ref
+                                .read(playerProvider.notifier)
+                                .upgradeProgress();
                             if (mounted) {
                               setState(() {
-                                _lastEconomyActionKey =
-                                    ok ? 'home_action_upgrade_success' : 'home_action_denied';
+                                _lastEconomyActionKey = ok
+                                    ? 'home_action_upgrade_success'
+                                    : 'home_action_denied';
                               });
                             }
                           },
@@ -272,14 +280,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               variant: AppButtonVariant.primary,
               size: AppButtonSize.large,
               onPressed: () => context.push(AppRoutes.game),
-              isExpanded: true,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            AppButton(
-              labelKey: 'home_open_settings',
-              variant: AppButtonVariant.ghost,
-              size: AppButtonSize.medium,
-              onPressed: () => context.push(AppRoutes.settings),
               isExpanded: true,
             ),
             const SizedBox(height: AppSpacing.md),

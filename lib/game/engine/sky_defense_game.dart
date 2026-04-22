@@ -147,8 +147,8 @@ class SkyDefenseGame extends FlameGame with TapCallbacks {
       final double pathDx = missile.target.x - missile.origin.x;
       final double pathDy = missile.target.y - missile.origin.y;
       final double pathDistance = sqrt((pathDx * pathDx) + (pathDy * pathDy));
-      final double traveledDx = missile.x - missile.origin.x;
-      final double traveledDy = missile.y - missile.origin.y;
+      final double traveledDx = missile.linearPosition.x - missile.origin.x;
+      final double traveledDy = missile.linearPosition.y - missile.origin.y;
       final double traveledDistance =
           sqrt((traveledDx * traveledDx) + (traveledDy * traveledDy));
       final double progress = pathDistance <= 0.0001

@@ -149,7 +149,16 @@ final collisionSystemProvider = Provider<CollisionSystem>(
 );
 
 final waveManagerProvider = Provider<WaveManager>(
-  (Ref ref) => WaveManager(),
+  (Ref ref) {
+    final gameBalance = ref.watch(resolvedGameBalanceConfigProvider);
+    return WaveManager(
+      startSpawnIntervalSeconds: gameBalance.baseSpawnIntervalSeconds,
+      endSpawnIntervalSeconds: gameBalance.endSpawnIntervalSeconds,
+      baseEnemySpeed: gameBalance.baseThreatSpeed * 50,
+      speedStepSeconds: gameBalance.speedStepEveryWaves,
+      speedStepRatio: gameBalance.speedStepFactor,
+    );
+  },
 );
 
 final gameManagerProvider =
@@ -164,6 +173,7 @@ final gameManagerProvider =
     collisionSystem: ref.watch(collisionSystemProvider),
     waveManager: ref.watch(waveManagerProvider),
     maxConcurrentThreats: gameBalance.maxConcurrentThreats,
+    bossConfig: gameBalance.boss,
   );
 });
 
