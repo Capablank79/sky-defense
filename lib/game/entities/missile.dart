@@ -1,49 +1,110 @@
+import 'dart:math';
+
 import 'package:flame/components.dart';
 
+enum MissileType {
+  slow,
+  medium,
+  fast,
+  split,
+  zigzag,
+  heavy,
+  boss,
+}
+
+enum MissileTargetKind {
+  base,
+  city,
+}
+
 class Missile {
-  const Missile({
+  Missile({
     required this.id,
     required this.targetBaseId,
-    required this.x,
-    required this.y,
+    required this.targetKind,
+    required this.type,
     required this.origin,
     required this.target,
-    required this.progress,
     required this.speed,
+    required this.hitPoints,
+    required this.maxHitPoints,
     required this.isActive,
-  });
+    this.splitRemaining = 0,
+    this.hasSplit = false,
+    this.hasArrived = false,
+    this.zigzagAmplitude = 0,
+    this.zigzagFrequency = 0,
+  })  : position = origin.clone(),
+        linearPosition = origin.clone(),
+        velocity =
+            _computeVelocity(origin: origin, target: target, speed: speed);
 
   final String id;
-  final String targetBaseId;
-  final double x;
-  final double y;
-  final Vector2 origin;
-  final Vector2 target;
-  final double progress;
+  String targetBaseId;
+  MissileTargetKind targetKind;
+  MissileType type;
+  Vector2 origin;
+  Vector2 target;
+  Vector2 position;
+  Vector2 linearPosition;
+  Vector2 velocity;
   final double speed;
-  final bool isActive;
+  int hitPoints;
+  final int maxHitPoints;
+  bool isActive;
+  double ageSeconds = 0;
+  int splitRemaining;
+  bool hasSplit;
+  bool hasArrived;
+  double zigzagAmplitude;
+  double zigzagFrequency;
 
-  Missile copyWith({
-    String? id,
-    String? targetBaseId,
-    double? x,
-    double? y,
-    Vector2? origin,
-    Vector2? target,
-    double? progress,
-    double? speed,
-    bool? isActive,
+  double get x => position.x;
+  double get y => position.y;
+  bool get isDestroyed => hitPoints <= 0;
+
+  void update(double dtSeconds) {
+    ageSeconds += dtSeconds;
+    linearPosition.x += velocity.x * dtSeconds;
+    linearPosition.y += velocity.y * dtSeconds;
+    position.setFrom(linearPosition);
+    if (type == MissileType.zigzag &&
+        zigzagAmplitude > 0 &&
+        zigzagFrequency > 0 &&
+        velocity.length2 > 0.000001) {
+      final Vector2 direction = velocity.normalized();
+      final Vector2 perpendicular = Vector2(-direction.y, direction.x);
+      final double offset = zigzagAmplitude * sin(ageSeconds * zigzagFrequency);
+      position.x += perpendicular.x * offset;
+      position.y += perpendicular.y * offset;
+    }
+  }
+
+  void retarget({
+    required String nextTargetBaseId,
+    required MissileTargetKind nextTargetKind,
+    required Vector2 nextTarget,
   }) {
-    return Missile(
-      id: id ?? this.id,
-      targetBaseId: targetBaseId ?? this.targetBaseId,
-      x: x ?? this.x,
-      y: y ?? this.y,
-      origin: origin ?? this.origin,
-      target: target ?? this.target,
-      progress: progress ?? this.progress,
-      speed: speed ?? this.speed,
-      isActive: isActive ?? this.isActive,
-    );
+    targetBaseId = nextTargetBaseId;
+    targetKind = nextTargetKind;
+    origin = position.clone();
+    target = nextTarget.clone();
+    linearPosition = position.clone();
+    ageSeconds = 0;
+    hasArrived = false;
+    velocity = _computeVelocity(origin: position, target: target, speed: speed);
+  }
+
+  static Vector2 _computeVelocity({
+    required Vector2 origin,
+    required Vector2 target,
+    required double speed,
+  }) {
+    final Vector2 direction = target - origin;
+    if (direction.length2 <= 0.000001) {
+      return Vector2.zero();
+    }
+    direction.normalize();
+    return direction * speed;
   }
 }

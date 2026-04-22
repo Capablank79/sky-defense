@@ -1,8 +1,10 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:sky_defense/core/router/app_routes.dart';
 import 'package:sky_defense/core/theme/app_spacing.dart';
-import 'package:sky_defense/domain/entities/player_profile.dart';
+import 'package:sky_defense/domain/entities/player_upgrades.dart';
 import 'package:sky_defense/game/engine/game_manager.dart';
 import 'package:sky_defense/game/engine/sky_defense_game.dart';
 import 'package:sky_defense/presentation/providers/feature_providers.dart';
@@ -18,17 +20,18 @@ class GameScreen extends ConsumerStatefulWidget {
 }
 
 class _GameScreenState extends ConsumerState<GameScreen> {
-  late final SkyDefenseGame _game = ref.read(skyDefenseGameProvider);
   ProviderSubscription<int?>? _creditsSubscription;
+  ProviderSubscription<PlayerUpgrades?>? _upgradesSubscription;
+  ProviderSubscription<int>? _waveRewardSubscription;
 
   @override
   void initState() {
     super.initState();
+
+    /// 🔹 Sync créditos
     _creditsSubscription = ref.listenManual<int?>(
-      playerProvider.select(
-        (AsyncValue<PlayerProfile> value) => value.asData?.value.economy.credits,
-      ),
-      (int? previous, int? next) {
+      playerProvider.select((v) => v.asData?.value.economy.credits),
+      (_, next) {
         if (next != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             ref.read(gameManagerProvider.notifier).syncPlayerCredits(next);
@@ -37,136 +40,147 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       },
       fireImmediately: true,
     );
+
+    /// 🔹 Sync upgrades
+    _upgradesSubscription = ref.listenManual<PlayerUpgrades?>(
+      playerProvider.select((v) => v.asData?.value.upgrades),
+      (_, next) {
+        if (next == null) return;
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(gameManagerProvider.notifier).configurePlayerUpgrades(next);
+        });
+      },
+      fireImmediately: true,
+    );
+
+    /// 🔹 Recompensas por oleada
+    _waveRewardSubscription = ref.listenManual<int>(
+      gameManagerProvider.select((s) => s.waveRewardCounter),
+      (prev, next) {
+        if (prev != null && next <= prev) return;
+
+        final reward = ref.read(gameManagerProvider).lastWaveRewardCredits;
+
+        if (reward > 0) {
+          ref.read(playerProvider.notifier).addCredits(reward);
+        }
+      },
+    );
   }
 
   @override
   void dispose() {
     _creditsSubscription?.close();
+    _upgradesSubscription?.close();
+    _waveRewardSubscription?.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final game = ref.read(skyDefenseGameProvider);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const AppText(
-          textKey: 'game_title',
-          variant: AppTextVariant.heading,
-        ),
+      body: Row(
+        children: [
+          /// 🔹 HUD IZQUIERDO
+          Container(
+            width: 140,
+            color: Colors.black.withValues(alpha: 0.85),
+            padding: const EdgeInsets.all(12),
+            child: Consumer(
+              builder: (context, ref, _) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  ref.read(gameManagerProvider.notifier).setHudWidth(140);
+                });
+
+                final session = ref.watch(gameManagerProvider);
+                final manager = ref.read(gameManagerProvider.notifier);
+
+                final ammo = List<int>.from(manager.ammoPerBase);
+                while (ammo.length < 4) {
+                  ammo.add(0);
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _hudText('Puntaje: ${session.score}'),
+                    _hudText('Oleada: ${manager.wave}'),
+                    _hudText('Créditos: ${manager.credits}'),
+                    _hudText('Bases: ${manager.aliveBasesCount}'),
+                    _hudText(
+                        'Interceptores: ${manager.activeInterceptorsCount}'),
+                    _hudText(
+                        'Munición B1:${ammo[0]} B2:${ammo[1]} B3:${ammo[2]} B4:${ammo[3]}'),
+                  ],
+                );
+              },
+            ),
+          ),
+
+          /// 🔹 JUEGO + OVERLAYS
+          Expanded(
+            child: GameWidget<SkyDefenseGame>(
+              game: game,
+              initialActiveOverlays: const ['wave_ui'],
+              overlayBuilderMap: {
+                SkyDefenseGame.gameOverOverlayId: (_, __) =>
+                    const _GameOverOverlay(),
+
+                /// 🔥 Overlay central limpio (FIX REAL)
+                'wave_ui': (_, __) => const _WaveCenterOverlay(),
+              },
+            ),
+          ),
+        ],
       ),
-      body: GameWidget<SkyDefenseGame>(
-        game: _game,
-        overlayBuilderMap: <String,
-            Widget Function(BuildContext, SkyDefenseGame)>{
-          SkyDefenseGame.hudOverlayId:
-              (BuildContext context, SkyDefenseGame game) {
-            return const _HudOverlay();
-          },
-          SkyDefenseGame.gameOverOverlayId:
-              (BuildContext context, SkyDefenseGame game) {
-            return const _GameOverOverlay();
-          },
-        },
+    );
+  }
+
+  Widget _hudText(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        text,
+        style: const TextStyle(color: Colors.white),
       ),
     );
   }
 }
 
-class _HudOverlay extends StatelessWidget {
-  const _HudOverlay();
+class _WaveCenterOverlay extends ConsumerWidget {
+  const _WaveCenterOverlay();
 
   @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: <Widget>[
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.sm,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(gameManagerProvider);
+    final isWaveActive = session.isWaveActive;
+    final countdown = session.interWaveTimerSeconds.ceil();
+
+    String? text;
+    if (!isWaveActive && countdown > 0) {
+      text = countdown.toString();
+    } else if (session.bossWave && isWaveActive) {
+      text = 'JEFE FINAL';
+    }
+
+    return IgnorePointer(
+      child: Center(
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 300),
+          opacity: text == null ? 0 : 1,
+          child: text == null
+              ? const SizedBox()
+              : Text(
+                  text,
+                  style: const TextStyle(
+                    fontSize: 42,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                child: Consumer(
-                  builder:
-                      (BuildContext context, WidgetRef ref, Widget? child) {
-                    final GameSession session = ref.watch(gameManagerProvider);
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        AppText(
-                          textKey: 'game_score_value',
-                          args: <String, String>{
-                            'value': session.score.toString(),
-                          },
-                          variant: AppTextVariant.body,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        AppText(
-                          textKey: 'game_wave_value',
-                          args: <String, String>{
-                            'value': session.currentWave.toString(),
-                          },
-                          variant: AppTextVariant.caption,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        AppText(
-                          textKey: 'game_remaining_bases_value',
-                          args: <String, String>{
-                            'value': session.remainingBases.toString(),
-                          },
-                          variant: AppTextVariant.caption,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        AppText(
-                          textKey: 'game_interceptors_value',
-                          args: <String, String>{
-                            'value': session.remainingInterceptors.toString(),
-                          },
-                          variant: AppTextVariant.caption,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        AppText(
-                          textKey: 'game_interceptors_per_base_value',
-                          args: <String, String>{
-                            'value': session.interceptorsPerBase
-                                .asMap()
-                                .entries
-                                .map((entry) =>
-                                    'B${entry.key + 1}:${entry.value}')
-                                .join('  '),
-                          },
-                          variant: AppTextVariant.caption,
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.sm,
-                ),
-                child: AppText(
-                  textKey: 'game_tap_hint',
-                  variant: AppTextVariant.caption,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -179,9 +193,10 @@ class _GameOverOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer(
-      builder: (BuildContext context, WidgetRef ref, Widget? child) {
-        final GameSession session = ref.watch(gameManagerProvider);
-        final bool canContinue =
+      builder: (context, ref, _) {
+        final session = ref.watch(gameManagerProvider);
+
+        final canContinue =
             session.playerCredits >= GameManager.continueCostCredits;
 
         return Center(
@@ -191,64 +206,59 @@ class _GameOverOverlay extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.md,
-              ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 320),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    const AppText(
-                      textKey: 'game_over_overlay',
-                      variant: AppTextVariant.heading,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppText(
-                      textKey: 'game_score_value',
-                      args: <String, String>{
-                        'value': session.score.toString(),
-                      },
-                      variant: AppTextVariant.caption,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    AppText(
-                      textKey: 'game_wave_value',
-                      args: <String, String>{
-                        'value': session.currentWave.toString(),
-                      },
-                      variant: AppTextVariant.caption,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(
-                      labelKey: 'game_continue_button',
-                      isDisabled: !canContinue,
-                      onPressed: canContinue
-                          ? () {
-                              // ignore: avoid_print
-                              print('Continue pressed');
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                ref.read(gameManagerProvider.notifier).continueGame();
-                              });
-                            }
-                          : null,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppButton(
-                      labelKey: 'game_restart_button',
-                      variant: AppButtonVariant.ghost,
-                      onPressed: () {
-                        // ignore: avoid_print
-                        print('Restart pressed');
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          ref.read(gameManagerProvider.notifier).restartGame();
-                        });
-                      },
-                    ),
-                  ],
-                ),
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const AppText(
+                    textKey: 'game_over_overlay',
+                    variant: AppTextVariant.heading,
+                  ),
+                  const SizedBox(height: 10),
+                  Text('Score: ${session.score}'),
+                  Text('Wave: ${session.currentWave}'),
+                  Text('Credits: ${session.creditsEarned}'),
+                  const SizedBox(height: 16),
+
+                  /// 🔹 CONTINUE
+                  AppButton(
+                    labelKey: 'game_continue_button',
+                    isDisabled: !canContinue,
+                    onPressed: canContinue
+                        ? () async {
+                            final spent = await ref
+                                .read(playerProvider.notifier)
+                                .spendCredits(GameManager.continueCostCredits);
+
+                            if (!spent) return;
+
+                            ref
+                                .read(gameManagerProvider.notifier)
+                                .continueGame();
+                          }
+                        : null,
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  /// 🔹 RESTART
+                  AppButton(
+                    labelKey: 'game_restart_button',
+                    variant: AppButtonVariant.ghost,
+                    onPressed: () {
+                      ref.read(gameManagerProvider.notifier).restartGame();
+                    },
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  /// 🔹 UPGRADES
+                  AppButton(
+                    labelKey: 'game_upgrades_button',
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () => context.push(AppRoutes.upgrades),
+                  ),
+                ],
               ),
             ),
           ),

@@ -2,6 +2,7 @@ import 'package:sky_defense/domain/entities/player_profile.dart';
 import 'package:sky_defense/domain/entities/player_settings.dart';
 import 'package:sky_defense/domain/entities/player_progress.dart';
 import 'package:sky_defense/domain/entities/player_economy.dart';
+import 'package:sky_defense/domain/entities/player_upgrades.dart';
 import 'package:sky_defense/domain/entities/result.dart';
 import 'package:sky_defense/domain/repositories/player_repository.dart';
 
@@ -28,6 +29,7 @@ class GetPlayerDataUseCase {
         ),
         economy: PlayerEconomy(credits: 0, premiumCredits: 0),
         settings: PlayerSettings(soundEnabled: true, hapticEnabled: true),
+        upgrades: PlayerUpgrades.defaults,
       ).toSanitized(rules: rules);
     }
     final PlayerProfile profile = (result as Success<PlayerProfile>).value ??
@@ -42,6 +44,7 @@ class GetPlayerDataUseCase {
           ),
           economy: PlayerEconomy(credits: 0, premiumCredits: 0),
           settings: PlayerSettings(soundEnabled: true, hapticEnabled: true),
+          upgrades: PlayerUpgrades.defaults,
         );
     return profile.toSanitized(rules: rules);
   }

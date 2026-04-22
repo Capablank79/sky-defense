@@ -1,17 +1,20 @@
+import 'dart:math';
+
 import 'package:sky_defense/game/entities/base.dart';
-import 'package:sky_defense/game/debug/debug_flags.dart';
 
 class BaseSystem {
   List<Base> _bases = <Base>[];
   double _lastWorldWidth = 0;
   double _lastWorldHeight = 0;
+  int _ammoMax = 10;
+  double _reloadSpeed = 0.6;
 
   void initializeBases({
     required double worldWidth,
     required double worldHeight,
     int baseCount = 4,
     double horizontalMargin = 56,
-    double bottomOffset = 48,
+    double bottomOffset = 110,
   }) {
     if (worldWidth <= 0 || worldHeight <= 0 || baseCount <= 0) {
       return;
@@ -31,9 +34,9 @@ class BaseSystem {
         id: 'base_$index',
         x: x,
         y: baseY,
-        ammoMax: kDebugFastFail ? 3 : 10,
-        ammoCurrent: kDebugFastFail ? 3 : 10,
-        ammoRegenRate: kDebugFastFail ? 0.3 : 0.6,
+        ammoMax: _ammoMax,
+        ammoCurrent: _ammoMax.toDouble(),
+        ammoRegenRate: _reloadSpeed,
       );
     });
   }
@@ -46,6 +49,17 @@ class BaseSystem {
     return List<Base>.unmodifiable(
       _bases.where((Base base) => !base.isDestroyed && base.health > 0),
     );
+  }
+
+  Base? getRandomAliveBase([Random? random]) {
+    final Random safeRandom = random ?? Random();
+    final List<Base> alive = _bases
+        .where((Base base) => !base.isDestroyed && base.health > 0)
+        .toList(growable: false);
+    if (alive.isEmpty) {
+      return null;
+    }
+    return alive[safeRandom.nextInt(alive.length)];
   }
 
   Base? getNearestActiveBase({
@@ -174,5 +188,45 @@ class BaseSystem {
 
   void reset() {
     resetAllBases();
+  }
+
+  void positionBasesInArea({
+    required double minX,
+    required double maxX,
+    required double y,
+  }) {
+    if (_bases.isEmpty) {
+      return;
+    }
+    final double clampedMinX = minX < maxX ? minX : maxX;
+    final double clampedMaxX = maxX > minX ? maxX : minX;
+    final double width = clampedMaxX - clampedMinX;
+    final double spacing = _bases.length <= 1 ? 0 : width / (_bases.length - 1);
+    for (int i = 0; i < _bases.length; i += 1) {
+      final Base base = _bases[i];
+      _bases[i] = base.copyWith(
+        x: clampedMinX + (spacing * i),
+        y: y,
+      );
+    }
+  }
+
+  void setAmmoConfig({
+    required int ammoMax,
+    required double reloadSpeed,
+  }) {
+    _ammoMax = ammoMax < 1 ? 1 : ammoMax;
+    _reloadSpeed = reloadSpeed <= 0 ? 0.1 : reloadSpeed;
+    if (_bases.isEmpty) {
+      return;
+    }
+    for (int i = 0; i < _bases.length; i += 1) {
+      final Base base = _bases[i];
+      _bases[i] = base.copyWith(
+        ammoMax: _ammoMax,
+        ammoCurrent: base.ammoCurrent.clamp(0, _ammoMax.toDouble()),
+        ammoRegenRate: _reloadSpeed,
+      );
+    }
   }
 }

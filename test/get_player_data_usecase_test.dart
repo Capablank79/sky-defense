@@ -4,6 +4,7 @@ import 'package:sky_defense/domain/entities/player_profile.dart';
 import 'package:sky_defense/domain/entities/player_progress.dart';
 import 'package:sky_defense/domain/entities/result.dart';
 import 'package:sky_defense/domain/entities/player_settings.dart';
+import 'package:sky_defense/domain/entities/player_upgrades.dart';
 import 'package:sky_defense/domain/repositories/player_repository.dart';
 import 'package:sky_defense/domain/usecases/get_player_data_usecase.dart';
 
@@ -36,6 +37,7 @@ void main() {
       ),
       economy: PlayerEconomy(credits: -100, premiumCredits: -1),
       settings: PlayerSettings(soundEnabled: true, hapticEnabled: true),
+      upgrades: PlayerUpgrades.defaults,
     );
     final GetPlayerDataUseCase useCase =
         GetPlayerDataUseCase(_FakePlayerRepository(invalid));

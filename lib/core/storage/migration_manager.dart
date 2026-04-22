@@ -7,6 +7,7 @@ import 'package:sky_defense/domain/entities/player_economy.dart';
 import 'package:sky_defense/domain/entities/player_profile.dart';
 import 'package:sky_defense/domain/entities/player_progress.dart';
 import 'package:sky_defense/domain/entities/player_settings.dart';
+import 'package:sky_defense/domain/entities/player_upgrades.dart';
 
 class MigrationManager {
   const MigrationManager();
@@ -152,6 +153,9 @@ class MigrationManager {
     final Map<dynamic, dynamic> settings = Map<dynamic, dynamic>.from(
       (source['settings'] as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{},
     );
+    final Map<dynamic, dynamic> upgrades = Map<dynamic, dynamic>.from(
+      (source['upgrades'] as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{},
+    );
 
     final PlayerProfile profile = PlayerProfile(
       progress: PlayerProgress(
@@ -170,6 +174,12 @@ class MigrationManager {
       settings: PlayerSettings(
         soundEnabled: (settings['soundEnabled'] as bool?) ?? true,
         hapticEnabled: (settings['hapticEnabled'] as bool?) ?? true,
+      ),
+      upgrades: PlayerUpgrades(
+        ammoLevel: (upgrades['ammoLevel'] as int?) ?? 1,
+        reloadLevel: (upgrades['reloadLevel'] as int?) ?? 1,
+        explosionRadiusLevel: (upgrades['explosionRadiusLevel'] as int?) ?? 1,
+        interceptorSpeedLevel: (upgrades['interceptorSpeedLevel'] as int?) ?? 1,
       ),
     ).toSanitized(
       rules: PlayerSanitizationRules.fromConfig(
@@ -194,6 +204,12 @@ class MigrationManager {
       'settings': <dynamic, dynamic>{
         'soundEnabled': profile.settings.soundEnabled,
         'hapticEnabled': profile.settings.hapticEnabled,
+      },
+      'upgrades': <dynamic, dynamic>{
+        'ammoLevel': profile.upgrades.ammoLevel,
+        'reloadLevel': profile.upgrades.reloadLevel,
+        'explosionRadiusLevel': profile.upgrades.explosionRadiusLevel,
+        'interceptorSpeedLevel': profile.upgrades.interceptorSpeedLevel,
       },
     };
   }
@@ -234,6 +250,12 @@ class MigrationManager {
       'settings': <dynamic, dynamic>{
         'soundEnabled': true,
         'hapticEnabled': true,
+      },
+      'upgrades': <dynamic, dynamic>{
+        'ammoLevel': 1,
+        'reloadLevel': 1,
+        'explosionRadiusLevel': 1,
+        'interceptorSpeedLevel': 1,
       },
     };
   }

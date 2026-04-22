@@ -9,6 +9,7 @@ import 'package:sky_defense/domain/entities/player_profile.dart';
 import 'package:sky_defense/domain/entities/player_progress.dart';
 import 'package:sky_defense/domain/entities/result.dart';
 import 'package:sky_defense/domain/entities/player_settings.dart';
+import 'package:sky_defense/domain/entities/player_upgrades.dart';
 import 'package:sky_defense/domain/usecases/get_player_data_usecase.dart';
 import 'package:sky_defense/domain/usecases/save_player_data_usecase.dart';
 import 'package:sky_defense/game/engine/game_manager.dart';
@@ -227,6 +228,57 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
     return true;
   }
 
+  Future<bool> addCredits(int amount) async {
+    if (amount <= 0) {
+      return false;
+    }
+    final PlayerProfile current = state.value ?? _defaultProfile();
+    final PlayerProfile updated = current.copyWith(
+      economy: current.economy.copyWith(
+        credits: current.economy.credits + amount,
+      ),
+    );
+    final Result<void> result = await _savePlayerDataUseCase(updated);
+    if (!result.isSuccess) {
+      state = AsyncError((result as Failure<void>).message, StackTrace.current);
+      return false;
+    }
+    state = AsyncData(updated.toSanitized(rules: _sanitizationRules()));
+    return true;
+  }
+
+  int upgradeCostFor(PlayerUpgrades upgrades, UpgradeType type) {
+    const int baseCost = 120;
+    const int costStep = 80;
+    final int level = upgrades.levelFor(type);
+    return baseCost + ((level - 1) * costStep);
+  }
+
+  Future<bool> buyUpgrade(UpgradeType type) async {
+    final PlayerProfile current = state.value ?? _defaultProfile();
+    final int currentLevel = current.upgrades.levelFor(type);
+    if (currentLevel >= PlayerUpgrades.maxLevel) {
+      return false;
+    }
+    final int cost = upgradeCostFor(current.upgrades, type);
+    if (current.economy.credits < cost) {
+      return false;
+    }
+    final PlayerProfile updated = current.copyWith(
+      upgrades: current.upgrades.incrementLevel(type),
+      economy: current.economy.copyWith(
+        credits: current.economy.credits - cost,
+      ),
+    );
+    final Result<void> result = await _savePlayerDataUseCase(updated);
+    if (!result.isSuccess) {
+      state = AsyncError((result as Failure<void>).message, StackTrace.current);
+      return false;
+    }
+    state = AsyncData(updated.toSanitized(rules: _sanitizationRules()));
+    return true;
+  }
+
   Future<bool> upgradeProgress() async {
     final PlayerProfile current = state.value ?? _defaultProfile();
     final int cost = _economyConfig.upgradeCostPerLevel;
@@ -263,6 +315,7 @@ class PlayerController extends StateNotifier<AsyncValue<PlayerProfile>> {
       economy: PlayerEconomy(
           credits: _economyConfig.initialCredits, premiumCredits: 0),
       settings: const PlayerSettings(soundEnabled: true, hapticEnabled: true),
+      upgrades: PlayerUpgrades.defaults,
     );
   }
 

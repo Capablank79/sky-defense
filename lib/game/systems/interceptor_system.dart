@@ -89,10 +89,19 @@ class InterceptorSystem {
   }
 
   void reset() {
-    clearAll();
+    _interceptors = <InterceptorMissile>[];
+    _counter = 0;
   }
 
   void clear() {
     clearAll();
+  }
+
+  void setGlobalSpeed(double speed) {
+    final double safeSpeed = speed <= 0 ? 1 : speed;
+    for (int i = 0; i < _interceptors.length; i += 1) {
+      final InterceptorMissile missile = _interceptors[i];
+      _interceptors[i] = missile.copyWith(speed: safeSpeed);
+    }
   }
 }

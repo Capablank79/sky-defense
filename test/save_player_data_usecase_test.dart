@@ -3,6 +3,7 @@ import 'package:sky_defense/domain/entities/player_economy.dart';
 import 'package:sky_defense/domain/entities/player_profile.dart';
 import 'package:sky_defense/domain/entities/player_progress.dart';
 import 'package:sky_defense/domain/entities/player_settings.dart';
+import 'package:sky_defense/domain/entities/player_upgrades.dart';
 import 'package:sky_defense/domain/entities/result.dart';
 import 'package:sky_defense/domain/repositories/player_repository.dart';
 import 'package:sky_defense/domain/usecases/save_player_data_usecase.dart';
@@ -24,6 +25,7 @@ class _CaptureRepository implements PlayerRepository {
           ),
           economy: PlayerEconomy(credits: 0, premiumCredits: 0),
           settings: PlayerSettings(soundEnabled: true, hapticEnabled: true),
+          upgrades: PlayerUpgrades.defaults,
         ));
   }
 
@@ -49,6 +51,7 @@ void main() {
       ),
       economy: PlayerEconomy(credits: -999, premiumCredits: -2),
       settings: PlayerSettings(soundEnabled: true, hapticEnabled: true),
+      upgrades: PlayerUpgrades.defaults,
     );
 
     final Result<void> result = await useCase(invalid);
@@ -73,6 +76,7 @@ void main() {
       ),
       economy: PlayerEconomy(credits: 999999999, premiumCredits: 999999),
       settings: PlayerSettings(soundEnabled: true, hapticEnabled: true),
+      upgrades: PlayerUpgrades.defaults,
     );
 
     final Result<void> result = await useCase(invalid);
@@ -105,6 +109,7 @@ void main() {
       ),
       economy: PlayerEconomy(credits: 10, premiumCredits: 0),
       settings: PlayerSettings(soundEnabled: true, hapticEnabled: true),
+      upgrades: PlayerUpgrades.defaults,
     );
 
     final Result<void> result = await useCase(invalid);

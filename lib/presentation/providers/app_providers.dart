@@ -8,6 +8,7 @@ import 'package:sky_defense/presentation/screens/game_screen.dart';
 import 'package:sky_defense/presentation/screens/home_screen.dart';
 import 'package:sky_defense/presentation/screens/settings_screen.dart';
 import 'package:sky_defense/presentation/screens/splash_screen.dart';
+import 'package:sky_defense/presentation/screens/upgrades_screen.dart';
 import 'package:sky_defense/presentation/providers/system_providers.dart';
 
 final appLanguageControllerProvider =
@@ -37,6 +38,10 @@ final appRouterProvider = Provider<GoRouter>((Ref ref) {
       GoRoute(
         path: AppRoutes.game,
         builder: (context, state) => const GameScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.upgrades,
+        builder: (context, state) => const UpgradesScreen(),
       ),
     ],
   );

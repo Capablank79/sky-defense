@@ -22,6 +22,7 @@ import 'package:sky_defense/game/engine/game_manager.dart';
 import 'package:sky_defense/game/engine/wave_manager.dart';
 import 'package:sky_defense/game/systems/collision_system.dart';
 import 'package:sky_defense/game/systems/base_system.dart';
+import 'package:sky_defense/game/systems/city_system.dart';
 import 'package:sky_defense/game/systems/explosion_system.dart';
 import 'package:sky_defense/game/systems/interceptor_system.dart';
 import 'package:sky_defense/game/systems/missile_system.dart';
@@ -126,6 +127,10 @@ final baseSystemProvider = Provider<BaseSystem>(
   (Ref ref) => BaseSystem(),
 );
 
+final citySystemProvider = Provider<CitySystem>(
+  (Ref ref) => CitySystem(),
+);
+
 final explosionSystemProvider = Provider<ExplosionSystem>(
   (Ref ref) => ExplosionSystem(
     defaultRadius:
@@ -152,6 +157,7 @@ final gameManagerProvider =
   final gameBalance = ref.watch(resolvedGameBalanceConfigProvider);
   return GameManager(
     baseSystem: ref.watch(baseSystemProvider),
+    citySystem: ref.watch(citySystemProvider),
     missileSystem: ref.watch(missileSystemProvider),
     interceptorSystem: ref.watch(interceptorSystemProvider),
     explosionSystem: ref.watch(explosionSystemProvider),

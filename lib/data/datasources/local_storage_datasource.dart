@@ -56,6 +56,14 @@ class LocalStorageDataSource {
           (map['economy'] as Map?) ?? <String, dynamic>{}),
       'settings': Map<String, dynamic>.from(
           (map['settings'] as Map?) ?? <String, dynamic>{}),
+      'upgrades': <String, dynamic>{
+        'ammoLevel': ((map['upgrades'] as Map?)?['ammoLevel'] as int?) ?? 1,
+        'reloadLevel': ((map['upgrades'] as Map?)?['reloadLevel'] as int?) ?? 1,
+        'explosionRadiusLevel':
+            ((map['upgrades'] as Map?)?['explosionRadiusLevel'] as int?) ?? 1,
+        'interceptorSpeedLevel':
+            ((map['upgrades'] as Map?)?['interceptorSpeedLevel'] as int?) ?? 1,
+      },
     };
   }
 
@@ -76,6 +84,12 @@ class LocalStorageDataSource {
       'settings': <String, dynamic>{
         'soundEnabled': true,
         'hapticEnabled': true,
+      },
+      'upgrades': <String, dynamic>{
+        'ammoLevel': 1,
+        'reloadLevel': 1,
+        'explosionRadiusLevel': 1,
+        'interceptorSpeedLevel': 1,
       },
       'lastUpdatedAt': 0,
     };

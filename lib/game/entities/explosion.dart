@@ -5,6 +5,7 @@ class Explosion {
     required this.y,
     required this.radius,
     required this.lifetime,
+    required this.maxLifetime,
     required this.isActive,
   });
 
@@ -13,6 +14,7 @@ class Explosion {
   final double y;
   final double radius;
   final double lifetime;
+  final double maxLifetime;
   final bool isActive;
 
   Explosion copyWith({
@@ -21,6 +23,7 @@ class Explosion {
     double? y,
     double? radius,
     double? lifetime,
+    double? maxLifetime,
     bool? isActive,
   }) {
     return Explosion(
@@ -29,6 +32,7 @@ class Explosion {
       y: y ?? this.y,
       radius: radius ?? this.radius,
       lifetime: lifetime ?? this.lifetime,
+      maxLifetime: maxLifetime ?? this.maxLifetime,
       isActive: isActive ?? this.isActive,
     );
   }

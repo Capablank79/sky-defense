@@ -7,6 +7,7 @@ import 'package:sky_defense/domain/entities/player_profile.dart';
 import 'package:sky_defense/domain/entities/player_progress.dart';
 import 'package:sky_defense/domain/entities/result.dart';
 import 'package:sky_defense/domain/entities/player_settings.dart';
+import 'package:sky_defense/domain/entities/player_upgrades.dart';
 
 class _InMemoryStorage implements KeyValueStorage {
   final Map<String, Object?> _data = <String, Object?>{};
@@ -44,6 +45,7 @@ void main() {
       ),
       economy: PlayerEconomy(credits: 1500, premiumCredits: 5),
       settings: PlayerSettings(soundEnabled: true, hapticEnabled: false),
+      upgrades: PlayerUpgrades.defaults,
     );
 
     final Result<void> save = await repository.savePlayerProfile(profile);
@@ -56,5 +58,6 @@ void main() {
     expect(loaded.progress.currentStreakDay, 2);
     expect(loaded.economy.credits, 1500);
     expect(loaded.settings.hapticEnabled, false);
+    expect(loaded.upgrades.interceptorSpeedLevel, 1);
   });
 }

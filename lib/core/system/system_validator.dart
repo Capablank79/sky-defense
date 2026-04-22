@@ -6,6 +6,7 @@ import 'package:sky_defense/domain/entities/player_economy.dart';
 import 'package:sky_defense/domain/entities/player_profile.dart';
 import 'package:sky_defense/domain/entities/player_progress.dart';
 import 'package:sky_defense/domain/entities/player_settings.dart';
+import 'package:sky_defense/domain/entities/player_upgrades.dart';
 
 class SystemValidator {
   const SystemValidator(this._storage);
@@ -39,6 +40,7 @@ class SystemValidator {
     final Map<dynamic, dynamic> progress = _readMap(raw['progress']);
     final Map<dynamic, dynamic> economy = _readMap(raw['economy']);
     final Map<dynamic, dynamic> settings = _readMap(raw['settings']);
+    final Map<dynamic, dynamic> upgrades = _readMap(raw['upgrades']);
     final PlayerProfile profile = PlayerProfile(
       progress: PlayerProgress(
         highScore: (progress['highScore'] as int?) ?? 0,
@@ -55,6 +57,12 @@ class SystemValidator {
       settings: PlayerSettings(
         soundEnabled: (settings['soundEnabled'] as bool?) ?? true,
         hapticEnabled: (settings['hapticEnabled'] as bool?) ?? true,
+      ),
+      upgrades: PlayerUpgrades(
+        ammoLevel: (upgrades['ammoLevel'] as int?) ?? 1,
+        reloadLevel: (upgrades['reloadLevel'] as int?) ?? 1,
+        explosionRadiusLevel: (upgrades['explosionRadiusLevel'] as int?) ?? 1,
+        interceptorSpeedLevel: (upgrades['interceptorSpeedLevel'] as int?) ?? 1,
       ),
     );
 

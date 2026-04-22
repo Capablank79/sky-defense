@@ -2,12 +2,14 @@ import 'package:sky_defense/domain/entities/player_economy.dart';
 import 'package:sky_defense/domain/entities/player_profile.dart';
 import 'package:sky_defense/domain/entities/player_progress.dart';
 import 'package:sky_defense/domain/entities/player_settings.dart';
+import 'package:sky_defense/domain/entities/player_upgrades.dart';
 
 class PlayerProfileModel extends PlayerProfile {
   const PlayerProfileModel({
     required super.progress,
     required super.economy,
     required super.settings,
+    required super.upgrades,
   });
 
   factory PlayerProfileModel.empty() {
@@ -28,6 +30,7 @@ class PlayerProfileModel extends PlayerProfile {
         soundEnabled: true,
         hapticEnabled: true,
       ),
+      upgrades: PlayerUpgrades.defaults,
     );
   }
 
@@ -38,6 +41,8 @@ class PlayerProfileModel extends PlayerProfile {
         (map['economy'] as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{};
     final Map<dynamic, dynamic> settingsMap =
         (map['settings'] as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{};
+    final Map<dynamic, dynamic> upgradesMap =
+        (map['upgrades'] as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{};
 
     return PlayerProfileModel(
       progress: PlayerProgress(
@@ -56,6 +61,13 @@ class PlayerProfileModel extends PlayerProfile {
       settings: PlayerSettings(
         soundEnabled: (settingsMap['soundEnabled'] as bool?) ?? true,
         hapticEnabled: (settingsMap['hapticEnabled'] as bool?) ?? true,
+      ),
+      upgrades: PlayerUpgrades(
+        ammoLevel: (upgradesMap['ammoLevel'] as int?) ?? 1,
+        reloadLevel: (upgradesMap['reloadLevel'] as int?) ?? 1,
+        explosionRadiusLevel: (upgradesMap['explosionRadiusLevel'] as int?) ?? 1,
+        interceptorSpeedLevel:
+            (upgradesMap['interceptorSpeedLevel'] as int?) ?? 1,
       ),
     );
   }
@@ -78,6 +90,12 @@ class PlayerProfileModel extends PlayerProfile {
         'soundEnabled': settings.soundEnabled,
         'hapticEnabled': settings.hapticEnabled,
       },
+      'upgrades': <String, dynamic>{
+        'ammoLevel': upgrades.ammoLevel,
+        'reloadLevel': upgrades.reloadLevel,
+        'explosionRadiusLevel': upgrades.explosionRadiusLevel,
+        'interceptorSpeedLevel': upgrades.interceptorSpeedLevel,
+      },
       'lastUpdatedAt': DateTime.now().millisecondsSinceEpoch,
     };
   }
@@ -87,6 +105,7 @@ class PlayerProfileModel extends PlayerProfile {
       progress: profile.progress,
       economy: profile.economy,
       settings: profile.settings,
+      upgrades: profile.upgrades,
     );
   }
 }

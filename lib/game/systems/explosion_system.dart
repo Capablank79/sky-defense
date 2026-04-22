@@ -5,13 +5,17 @@ class ExplosionSystem {
     required double defaultRadius,
     required double defaultLifetime,
   })  : _defaultRadius = defaultRadius,
-        _defaultLifetime = defaultLifetime;
+        _defaultLifetime = defaultLifetime,
+        _configuredRadius = defaultRadius;
 
   final double _defaultRadius;
   final double _defaultLifetime;
+  double _configuredRadius;
   static const double _minLifetimeSeconds = 0.016;
   List<Explosion> _explosions = <Explosion>[];
   int _counter = 0;
+  
+  double get baseRadius => _defaultRadius;
 
   Explosion createExplosion(
     ({double x, double y}) position, {
@@ -26,8 +30,9 @@ class ExplosionSystem {
       id: 'explosion_${_counter++}',
       x: position.x,
       y: position.y,
-      radius: radius ?? _defaultRadius,
+      radius: radius ?? _configuredRadius,
       lifetime: safeLifetime,
+      maxLifetime: safeLifetime,
       isActive: true,
     );
     _explosions.add(explosion);
@@ -58,10 +63,15 @@ class ExplosionSystem {
   }
 
   void reset() {
-    clearAll();
+    _explosions = <Explosion>[];
+    _counter = 0;
   }
 
   void clear() {
     clearAll();
+  }
+
+  void setExplosionRadius(double value) {
+    _configuredRadius = value < 1 ? 1 : value;
   }
 }

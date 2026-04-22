@@ -3,6 +3,7 @@ import 'package:sky_defense/core/config/retention_config.dart';
 import 'package:sky_defense/domain/entities/player_economy.dart';
 import 'package:sky_defense/domain/entities/player_progress.dart';
 import 'package:sky_defense/domain/entities/player_settings.dart';
+import 'package:sky_defense/domain/entities/player_upgrades.dart';
 
 class PlayerSanitizationRules {
   const PlayerSanitizationRules({
@@ -44,11 +45,13 @@ class PlayerProfile {
     required this.progress,
     required this.economy,
     required this.settings,
+    required this.upgrades,
   });
 
   final PlayerProgress progress;
   final PlayerEconomy economy;
   final PlayerSettings settings;
+  final PlayerUpgrades upgrades;
 
   bool isValid({
     required PlayerSanitizationRules rules,
@@ -61,7 +64,8 @@ class PlayerProfile {
         economy.isValid(
           maxCredits: rules.maxCredits,
           maxPremiumCredits: rules.maxPremiumCredits,
-        );
+        ) &&
+        upgrades.isValid();
   }
 
   PlayerProfile toSanitized({
@@ -80,6 +84,7 @@ class PlayerProfile {
         maxPremiumCredits: safeRules.maxPremiumCredits,
       ),
       settings: settings,
+      upgrades: upgrades.toSanitized(),
     );
   }
 
@@ -87,11 +92,13 @@ class PlayerProfile {
     PlayerProgress? progress,
     PlayerEconomy? economy,
     PlayerSettings? settings,
+    PlayerUpgrades? upgrades,
   }) {
     return PlayerProfile(
       progress: progress ?? this.progress,
       economy: economy ?? this.economy,
       settings: settings ?? this.settings,
+      upgrades: upgrades ?? this.upgrades,
     );
   }
 }
