@@ -1,8 +1,11 @@
 {
   "version": 1,
   "baseSpawnIntervalSeconds": 1.25,
+  "endSpawnIntervalSeconds": 0.85,
   "maxConcurrentThreats": 8,
   "baseThreatSpeed": 1.0,
+  "speedStepEveryWaves": 2.0,
+  "speedStepFactor": 0.10,
   "baseExplosionRadius": 24.0,
   "collisionTolerance": 8.0
 }

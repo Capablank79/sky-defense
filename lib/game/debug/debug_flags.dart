@@ -1,1 +1,1 @@
-const bool kDebugFastFail = true;
+const bool kDebugFastFail = false;

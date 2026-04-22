@@ -117,10 +117,9 @@ void main() {
       expect(wave14.waveMissileCount, 15);
     }
 
-    expect(wave12.enemyMissileSpeed, greaterThanOrEqualTo(speed11));
-    expect(wave13.enemyMissileSpeed,
-        greaterThanOrEqualTo(wave12.enemyMissileSpeed));
-    expect(wave14.enemyMissileSpeed,
-        greaterThanOrEqualTo(wave13.enemyMissileSpeed));
+    expect(wave12.enemyMissileSpeed, greaterThan(speed11));
+    expect(wave13.enemyMissileSpeed, greaterThan(wave12.enemyMissileSpeed));
+    expect(wave14.enemyMissileSpeed, greaterThan(wave13.enemyMissileSpeed));
+    expect(wave14.enemyMissileSpeed, greaterThan(speed11 * 1.3));
   });
 }

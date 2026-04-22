@@ -40,6 +40,9 @@ class WaveTick {
     required this.zigzagProbability,
     required this.heavyProbability,
     required this.bossFireCooldown,
+    required this.completedPhaseNumber,
+    required this.completedWaveNumber,
+    required this.completedBossWave,
   });
 
   final bool spawnTrigger;
@@ -70,6 +73,9 @@ class WaveTick {
   final double zigzagProbability;
   final double heavyProbability;
   final double bossFireCooldown;
+  final int? completedPhaseNumber;
+  final int? completedWaveNumber;
+  final bool? completedBossWave;
 }
 
 class WaveManager {
@@ -179,6 +185,9 @@ class WaveManager {
     int spawnCount = 0;
     bool waveJustEnded = false;
     bool waveJustStarted = false;
+    int? completedPhaseNumber;
+    int? completedWaveNumber;
+    bool? completedBossWave;
 
     _logStateIfChanged();
     switch (_waveState) {
@@ -194,6 +203,9 @@ class WaveManager {
         final bool waveCompleted = missilesSpawned >= _missilesPerWave;
         final bool noThreatsLeft = activeMissiles == 0;
         if (waveCompleted && noThreatsLeft) {
+          completedPhaseNumber = phase;
+          completedWaveNumber = waveInPhase;
+          completedBossWave = false;
           _startCountdown();
           _logStateIfChanged();
           waveJustEnded = true;
@@ -210,6 +222,9 @@ class WaveManager {
       case WaveState.boss:
         if (_bossDefeatedPending) {
           _bossDefeatedPending = false;
+          completedPhaseNumber = phase;
+          completedWaveNumber = waveInPhase;
+          completedBossWave = true;
           _onBossDefeated();
 
           // 🔥 FIX: prevent false wave start after boss death
@@ -223,6 +238,9 @@ class WaveManager {
       spawnCount: spawnCount,
       waveJustEnded: waveJustEnded,
       waveJustStarted: waveJustStarted,
+      completedPhaseNumber: completedPhaseNumber,
+      completedWaveNumber: completedWaveNumber,
+      completedBossWave: completedBossWave,
     );
   }
 
@@ -261,6 +279,9 @@ class WaveManager {
     bool sessionEnded = false,
     required bool waveJustEnded,
     required bool waveJustStarted,
+    int? completedPhaseNumber,
+    int? completedWaveNumber,
+    bool? completedBossWave,
   }) {
     final Wave wave = currentWaveConfig;
     return WaveTick(
@@ -277,7 +298,7 @@ class WaveManager {
       multiTargetProbability: 0,
       elapsedSeconds: _elapsedSeconds,
       sessionEnded: sessionEnded,
-      currentWave: wave.waveNumber,
+      currentWave: currentWave,
       isWaveActive: isWaveActive,
       interWaveTimer: interWaveTimer,
       missilesSpawned: missilesSpawned,
@@ -296,13 +317,17 @@ class WaveManager {
       zigzagProbability: wave.zigzagProbability,
       heavyProbability: wave.heavyProbability,
       bossFireCooldown: wave.bossFireCooldown,
+      completedPhaseNumber: completedPhaseNumber,
+      completedWaveNumber: completedWaveNumber,
+      completedBossWave: completedBossWave,
     );
   }
 
   double _currentEnemySpeed() {
-    final double phaseMultiplier = 1 + ((phase - 1) * 0.1);
-    final double waveMultiplier = 1 + ((waveInPhase - 1) * 0.05);
-    final double speed = baseEnemySpeed * phaseMultiplier * waveMultiplier;
+    final double stepSpan = max(1.0, speedStepSeconds);
+    final double steps = (currentWave - 1) / stepSpan;
+    final double speedMultiplier = pow(1 + speedStepRatio, steps).toDouble();
+    final double speed = baseEnemySpeed * speedMultiplier;
     return min(speed, maxEnemySpeed);
   }
 
@@ -344,9 +369,18 @@ class WaveManager {
         bossFireCooldown: max(0.9, 2.2 - ((phase - 1) * 0.12)),
       );
     }
-    final double slowWeight = max(0.28, 0.62 - ((waveInPhase - 1) * 0.08));
-    final double fastWeight = min(0.42, 0.12 + ((waveInPhase - 1) * 0.07));
+    final int safeWave = waveInPhase.clamp(1, 4);
+    final double waveSpeedMultiplier = 1 + ((safeWave - 1) * 0.12);
+    final double phaseSpeedMultiplier = 1 + ((phase - 1) * 0.08);
+    final double baseSpeedMultiplier = waveSpeedMultiplier * phaseSpeedMultiplier;
+    final double slowWeight = max(0.3, 0.62 - ((safeWave - 1) * 0.10));
+    final double fastWeight = min(0.34, 0.10 + ((safeWave - 1) * 0.08));
     final double mediumWeight = max(0.1, 1 - slowWeight - fastWeight);
+    final double splitProbability = min(0.22, 0.02 + ((safeWave - 1) * 0.02));
+    final double zigzagProbability =
+        min(0.2, 0.01 + ((safeWave - 1) * 0.03));
+    final double heavyProbability =
+        min(0.16, 0.01 + ((safeWave - 1) * 0.015) + ((phase - 1) * 0.012));
     return Wave(
       phaseNumber: phase,
       waveNumber: waveInPhase,
@@ -356,25 +390,34 @@ class WaveManager {
       slowWeight: slowWeight,
       mediumWeight: mediumWeight,
       fastWeight: fastWeight,
-      splitProbability: min(0.22, 0.04 + ((phase - 1) * 0.015)),
-      zigzagProbability: min(0.2, 0.03 + ((phase - 1) * 0.014)),
-      heavyProbability: min(0.16, 0.02 + ((phase - 1) * 0.012)),
-      baseSpeedMultiplier: 1 + ((phase - 1) * 0.08),
+      splitProbability: splitProbability,
+      zigzagProbability: zigzagProbability,
+      heavyProbability: heavyProbability,
+      baseSpeedMultiplier: baseSpeedMultiplier,
       bossHitPoints: 7 + phase,
       bossFireCooldown: max(0.9, 2.2 - ((phase - 1) * 0.12)),
     );
   }
 
   void _configureWave() {
-    const double baseInterval = 3.0;
     const int baseMissiles = _baseMissilesPerWave;
 
+    const int wavesPerPhase = 4;
+    final double withinPhaseProgress = wavesPerPhase <= 1
+        ? 0
+        : (waveInPhase - 1) / (wavesPerPhase - 1);
+    final double intervalRange =
+        (startSpawnIntervalSeconds - endSpawnIntervalSeconds);
     _spawnInterval =
-        (baseInterval - ((waveInPhase - 1) * 0.25)).clamp(1.5, 3.0);
+        (startSpawnIntervalSeconds - (intervalRange * withinPhaseProgress))
+            .clamp(endSpawnIntervalSeconds, startSpawnIntervalSeconds);
     _missilesPerWave = baseMissiles + ((waveInPhase - 1) * 3);
 
-    final double phaseMultiplier = 1 + ((phase - 1) * 0.1);
-    _spawnInterval = (_spawnInterval / phaseMultiplier).clamp(1.2, 3.0);
+    final double phaseMultiplier = 1 + ((phase - 1) * speedStepRatio);
+    _spawnInterval = (_spawnInterval / phaseMultiplier).clamp(
+      endSpawnIntervalSeconds,
+      startSpawnIntervalSeconds,
+    );
   }
 
   int _updateSpawning({
@@ -385,6 +428,11 @@ class WaveManager {
   }) {
     final double safeDt = dtSeconds.clamp(0, 0.1);
     final double currentInterval = _currentSpawnInterval();
+    if (activeMissiles >= maxConcurrentThreats) {
+      // Keep cadence stable while blocked by cap, without triggering burst spawns.
+      _spawnTimer = min(_spawnTimer, currentInterval * 0.95);
+      return 0;
+    }
     _spawnTimer += safeDt;
     if (_spawnTimer >= currentInterval && missilesSpawned < _missilesPerWave) {
       final bool spawned = spawnMissile(
@@ -404,11 +452,6 @@ class WaveManager {
         }
         return 1;
       }
-    }
-    // 🔥 FAILSAFE: prevent infinite spawning lock
-    if (activeMissiles >= maxConcurrentThreats) {
-      // allow spawning anyway but slower
-      _spawnTimer = currentInterval * 0.8;
     }
     return 0;
   }
@@ -481,12 +524,15 @@ class WaveManager {
 
     final int count = _missilesPerWave;
     final Random r = Random();
+    final int safeWave = waveInPhase.clamp(1, 4);
+    final double longPauseFactor = (1.8 - ((safeWave - 1) * 0.15)).clamp(1.2, 1.8);
+    final double quickBurstChance = (0.3 + ((safeWave - 1) * 0.05)).clamp(0.3, 0.5);
 
     for (int i = 0; i < count; i++) {
       if (i % 5 == 0) {
         // pausa dramática
-        pattern.add(_spawnInterval * 1.8);
-      } else if (r.nextDouble() < 0.3) {
+        pattern.add(_spawnInterval * longPauseFactor);
+      } else if (r.nextDouble() < quickBurstChance) {
         // ráfaga rápida
         pattern.add(_spawnInterval * 0.4);
       } else {
