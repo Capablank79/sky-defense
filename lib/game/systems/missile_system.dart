@@ -1,5 +1,6 @@
 import 'package:flame/components.dart';
 import 'package:sky_defense/game/entities/base.dart';
+import 'package:sky_defense/game/entities/city.dart';
 import 'package:sky_defense/game/entities/missile.dart';
 
 class MissileSystem {
@@ -62,14 +63,15 @@ class MissileSystem {
       final Missile missile = _missiles[i];
       if (!missile.isActive) continue;
 
-      final double dx = missile.target.x - missile.position.x;
-      final double dy = missile.target.y - missile.position.y;
+      final double dx = missile.target.x - missile.linearPosition.x;
+      final double dy = missile.target.y - missile.linearPosition.y;
       final double distSq = dx * dx + dy * dy;
 
       if (distSq <= 0.0001) {
+        missile.linearPosition.setFrom(missile.target);
         missile.position.setFrom(missile.target);
-        missile.hasArrived = true; // 🔥 CLAVE
-        missile.isActive = false; // 🔥 FIX REAL
+        missile.hasArrived = true;
+        missile.isActive = false;
         _arrivedMissileIds.add(missile.id);
         continue;
       }
@@ -79,9 +81,10 @@ class MissileSystem {
       final double stepSq = stepX * stepX + stepY * stepY;
 
       if (stepSq >= distSq) {
+        missile.linearPosition.setFrom(missile.target);
         missile.position.setFrom(missile.target);
-        missile.hasArrived = true; // 🔥 CLAVE
-        missile.isActive = false; // 🔥 FIX REAL
+        missile.hasArrived = true;
+        missile.isActive = false;
         _arrivedMissileIds.add(missile.id);
         continue;
       }
@@ -184,36 +187,71 @@ class MissileSystem {
     return false;
   }
 
-  bool ensureValidTargets(List<Base> aliveBases) {
-    if (aliveBases.isEmpty) {
+  bool ensureValidTargets({
+    required List<Base> aliveBases,
+    required List<City> aliveCities,
+  }) {
+    if (aliveBases.isEmpty && aliveCities.isEmpty) {
       return false;
     }
     for (int i = 0; i < _missiles.length; i += 1) {
       final Missile missile = _missiles[i];
-      if (missile.targetKind != MissileTargetKind.base) {
+      if (!missile.isActive) {
         continue;
       }
-      final bool targetIsAlive = aliveBases.any(
-        (Base base) => base.id == missile.targetBaseId,
+      if (missile.targetKind == MissileTargetKind.base) {
+        if (aliveBases.isEmpty) {
+          continue;
+        }
+        final bool targetIsAlive = aliveBases.any(
+          (Base base) => base.id == missile.targetBaseId,
+        );
+        if (targetIsAlive) {
+          continue;
+        }
+        Base nearest = aliveBases.first;
+        double nearestDistance = double.infinity;
+        for (final Base base in aliveBases) {
+          final double dx = missile.x - base.x;
+          final double dy = missile.y - base.y;
+          final double distance = (dx * dx) + (dy * dy);
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearest = base;
+          }
+        }
+        missile.retarget(
+          nextTargetBaseId: nearest.id,
+          nextTargetKind: MissileTargetKind.base,
+          nextTarget: Vector2(nearest.x, nearest.y),
+        );
+        continue;
+      }
+
+      if (aliveCities.isEmpty) {
+        continue;
+      }
+      final bool cityIsAlive = aliveCities.any(
+        (City city) => city.id == missile.targetBaseId,
       );
-      if (targetIsAlive) {
+      if (cityIsAlive) {
         continue;
       }
-      Base nearest = aliveBases.first;
-      double nearestDistance = double.infinity;
-      for (final Base base in aliveBases) {
-        final double dx = missile.x - base.x;
-        final double dy = missile.y - base.y;
+      City nearestCity = aliveCities.first;
+      double nearestCityDistance = double.infinity;
+      for (final City city in aliveCities) {
+        final double dx = missile.x - city.x;
+        final double dy = missile.y - city.y;
         final double distance = (dx * dx) + (dy * dy);
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearest = base;
+        if (distance < nearestCityDistance) {
+          nearestCityDistance = distance;
+          nearestCity = city;
         }
       }
       missile.retarget(
-        nextTargetBaseId: nearest.id,
-        nextTargetKind: MissileTargetKind.base,
-        nextTarget: Vector2(nearest.x, nearest.y),
+        nextTargetBaseId: nearestCity.id,
+        nextTargetKind: MissileTargetKind.city,
+        nextTarget: Vector2(nearestCity.x, nearestCity.y),
       );
     }
     return true;

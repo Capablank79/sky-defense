@@ -87,12 +87,14 @@ class Missile {
   }) {
     targetBaseId = nextTargetBaseId;
     targetKind = nextTargetKind;
-    origin = position.clone();
+    origin = linearPosition.clone();
     target = nextTarget.clone();
-    linearPosition = position.clone();
+    linearPosition = origin.clone();
+    position.setFrom(linearPosition);
     ageSeconds = 0;
     hasArrived = false;
-    velocity = _computeVelocity(origin: position, target: target, speed: speed);
+    velocity =
+        _computeVelocity(origin: linearPosition, target: target, speed: speed);
   }
 
   static Vector2 _computeVelocity({
