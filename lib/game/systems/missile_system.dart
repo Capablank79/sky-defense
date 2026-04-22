@@ -68,11 +68,7 @@ class MissileSystem {
       final double distSq = dx * dx + dy * dy;
 
       if (distSq <= 0.0001) {
-        missile.linearPosition.setFrom(missile.target);
-        missile.position.setFrom(missile.target);
-        missile.hasArrived = true;
-        missile.isActive = false;
-        _arrivedMissileIds.add(missile.id);
+        _markMissileAsArrived(missile);
         continue;
       }
 
@@ -81,15 +77,18 @@ class MissileSystem {
       final double stepSq = stepX * stepX + stepY * stepY;
 
       if (stepSq >= distSq) {
-        missile.linearPosition.setFrom(missile.target);
-        missile.position.setFrom(missile.target);
-        missile.hasArrived = true;
-        missile.isActive = false;
-        _arrivedMissileIds.add(missile.id);
+        _markMissileAsArrived(missile);
         continue;
       }
 
       missile.update(dtSeconds);
+
+      if (_isOutsideBounds(missile.linearPosition)) {
+        // Nunca eliminar un misil activo en silencio.
+        // Lo convertimos en terminal para que el ciclo se cierre de forma explicita.
+        _markMissileAsArrived(missile);
+        continue;
+      }
 
       if (missile.type == MissileType.split &&
           !missile.hasSplit &&
@@ -102,12 +101,20 @@ class MissileSystem {
 
     _missiles.removeWhere(
       (Missile m) =>
-          (!m.isActive && !_arrivedMissileIds.contains(m.id)) ||
-          m.x < _minX ||
-          m.x > _maxX ||
-          m.y < _minY ||
-          m.y > _maxY,
+          !m.isActive && !m.hasArrived && !_arrivedMissileIds.contains(m.id),
     );
+  }
+
+  bool _isOutsideBounds(Vector2 pos) {
+    return pos.x < _minX || pos.x > _maxX || pos.y < _minY || pos.y > _maxY;
+  }
+
+  void _markMissileAsArrived(Missile missile) {
+    missile.linearPosition.setFrom(missile.target);
+    missile.position.setFrom(missile.target);
+    missile.hasArrived = true;
+    missile.isActive = false;
+    _arrivedMissileIds.add(missile.id);
   }
 
   void removeMissile(String id) {
